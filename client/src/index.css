@@ -22,7 +22,8 @@
 }
 
 .nav-link {
-  font-weight: 300 !important;
+  font-weight: 500 !important;
+  color: #f1750b ;
 }
 
 nav .active {
@@ -30,9 +31,10 @@ nav .active {
 }
 
 .navbar-brand {
-  font-weight: 700;
+  font-weight: 900;
   font-family: "roboto", sans-serif;
   letter-spacing: 3px;
+  color: #f1750b ;
 }
 
 /* =============================

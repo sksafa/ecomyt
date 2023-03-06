@@ -8,9 +8,7 @@ import { Prices } from "../components/Prices";
 import { useCart } from "../context/cart";
 import toast from "react-hot-toast";
 import "./HomeStyle.css";
-import slider1 from '../Image/Slider-1.jpg'
-import slider2 from '../Image/Slider-2.jpg'
-import slider3 from '../Image/Slider-3.jpg'
+import Banner from "../components/Banner";
 
 
 const HomePage = () => {
@@ -129,110 +127,80 @@ const HomePage = () => {
 
   return (
     <Layout title={"ALl Products - Best offers "}>
-      <div id="carouselExampleFade" className="carousel slide carousel-fade customSlider" data-bs-ride="carousel">
-        <div className="carousel-inner">
-          <div className="carousel-item active">
-            <img src={slider1} className="d-block w-100" alt="..." />
-            <div className="carousel-caption">
-              <h1>New Range Of <br /><span className="titleText">Samsung Oven</span></h1>
-              <button className="btn btn-warning">Shop Now</button>
-            </div>
-          </div>
-          <div className="carousel-item">
-            <img src={slider2} className="d-block w-100" alt="..." />
-            <div className="carousel-caption">
-              <h1>New Range Of Smart<br /><span className="titleText">Gaming Mouse</span></h1>
-              <button className="btn btn-warning">Shop Now</button>
-            </div>
-          </div>
-          <div className="carousel-item">
-            <img src={slider3} className="d-block w-100" alt="..." />
-            <div className="carousel-caption">
-              <h1>New Range Of  <br /><span className="titleText">Canon Camera</span></h1>
-              <button className="btn btn-warning">Shop Now</button>
-            </div>
-          </div>
-        </div>
-        <button className="carousel-control-prev" type="button" data-bs-target="#carouselExampleFade" data-bs-slide="prev">
-          <span className="carousel-control-prev-icon" aria-hidden="true"></span>
-          <span className="visually-hidden">Previous</span>
-        </button>
-        <button className="carousel-control-next" type="button" data-bs-target="#carouselExampleFade" data-bs-slide="next">
-          <span className="carousel-control-next-icon" aria-hidden="true"></span>
-          <span className="visually-hidden">Next</span>
-        </button>
-      </div>
-
+      <Banner />
       <div className="container-fluid">
         <div className="row">
-          <div className="col-md-2">
-            <h4 className="text-center">Filter By Category</h4>
-            <div className="d-flex flex-column">
+          <div className="col-md-2 optionArea">
+            <h4>Filter By Category</h4>
+            <div className="d-flex flex-column dddd">
               {categories?.map((c) => (
                 <Checkbox
                   key={c._id}
                   onChange={(e) => handleFilter(e.target.checked, c._id)}
+                  className="Checkbox ms-2"
                 >
                   {c.name}
                 </Checkbox>
               ))}
             </div>
             {/* price filter */}
-            <h4 className="text-center mt-4">Filter By Price</h4>
+            <h4 className="mt-4">Filter By Price</h4>
             <div className="d-flex flex-column">
               <Radio.Group onChange={(e) => setRadio(e.target.value)}>
                 {Prices?.map((p) => (
                   <div key={p._id}>
-                    <Radio value={p.array}>{p.name}</Radio>
+                    <Radio className="radio" value={p.array}>{p.name}</Radio>
                   </div>
                 ))}
               </Radio.Group>
             </div>
             <div className="d-flex flex-column">
               <button
-                className="btn btn-danger"
+                className=""
                 onClick={() => window.location.reload()}
               >
                 RESET FILTERS
               </button>
             </div>
           </div>
-          <div className="col-md-9 offset-1">
-            <h1 className="text-center">All Products</h1>
+
+          <div className="col-md-10 ProductArea">
+            <h2 className="text-center">All <span className="text-dark">Products</span></h2>
+
             <div className="d-flex flex-wrap">
               {products?.map((p) => (
-                <div className="card m-2" style={{ width: "18rem" }} key={p._id}>
+                <div className="card m-3" style={{ width: "18rem" }} key={p._id}>
                   <img
                     src={`/api/v1/product/product-photo/${p._id}`}
                     className="card-img-top"
                     alt={p.name}
                   />
                   <div className="card-body">
-                    <h5 className="card-title">{p.name}</h5>
-                    <p className="card-text">
-                      {p.description.substring(0, 30)}...
-                    </p>
-                    <p className="card-text"> $ {p.price}</p>
+                    <h5>{p.name}</h5>
+                    <p> {p.description.substring(0, 30)}...</p>
+                    <h4> ${p.price}</h4>
                     <button
-                      className="btn btn-primary ms-1"
+                      className=" button-1 ms-1"
                       onClick={() => navigate(`/product/${p.slug}`)}
                     >
                       More Details
                     </button>
                     <button
-                      className="btn btn-secondary ms-1"
+                      className=" button-2 ms-1"
                       onClick={() => setCartItem(p)}
                     >
-                      ADD TO CART
+                      Add To Cart
                     </button>
                   </div>
                 </div>
               ))}
             </div>
+
+
             <div className="m-2 p-3">
               {products && products.length < total && (
                 <button
-                  className="btn btn-warning"
+                  className="button-3"
                   onClick={(e) => {
                     e.preventDefault();
                     setPage(page + 1);
