@@ -156,3 +156,61 @@ height: 550px;
 .ProductArea .card:hover{
     box-shadow: rgba(0, 0, 0, 0.16) 0px 3px 6px, rgba(0, 0, 0, 0.23) 0px 3px 6px;
 }
+
+.productDetails{}
+.productDetails h2{
+    font-size: 25px;
+    margin: 50px 0;
+    font-weight: 900;
+    text-transform: uppercase;
+    color: #f1750b ;
+}
+.productDetails h4{
+    font-size: 20px;
+    margin: 20px 0;
+    font-weight: 900;
+    color: #000 ;
+}
+.productDetails h6{
+    font-size: 20px;
+    margin: 10px 0;
+    font-weight: 500;
+    color: #000 ;
+}
+
+.productDetails .button-2{
+    padding: 3px 6px;
+    background-color: #fff;
+    border: 2px solid #f1750b;
+    color: #f1750b;
+    font-weight: 600;
+    border-radius: 4px;
+    font-size: 14px;
+    margin-top: 20px;
+} 
+.productDetails .button-2:hover{
+    background-color: #f1750b;
+    border: 2px solid #f1750b;
+    color: #fff;
+}
+
+.productDetails .button-1{
+    padding: 3px 6px;
+    background-color: #fff;
+    border: 2px solid #000;
+    color: #000;
+    font-weight: 600;
+    border-radius: 4px;
+    font-size: 14px;
+} 
+
+.productDetails .button-1:hover{
+    background-color: #000;
+    color: #fff;
+}
+.productDetails h5{
+    color: #f1750b;
+    font-size: 18px;
+    font-weight: 700;
+}
+.productDetails{}
