@@ -110,3 +110,7 @@ nav .active {
   text-decoration: none !important;
   color: black !important;
 }
+
+.userDashboard{
+  margin-top: 100px;
+}

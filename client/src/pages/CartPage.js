@@ -95,7 +95,7 @@ const CartPage = () => {
         <div className="row">
           <div className="col-md-12">
             <h4 className="fw-bold mb-1 mt-2">
-              {`Hello, ${ auth?.token &&  auth?.user?.name}`}
+              {`Hello, ${auth?.token && auth?.user?.name}`}
             </h4>
             <h6 className="mb-5 brown">
               {cart?.length
@@ -114,6 +114,7 @@ const CartPage = () => {
                   <th>Name</th>
                   <th>Price</th>
                   <th>Quantity</th>
+                  <th>Remove</th>
                 </tr>
               </thead>
               <tbody>
@@ -126,20 +127,23 @@ const CartPage = () => {
                         width={"60px"}
                         height={"60px"}
                       /></td>
-                    <td ><p className = "fw-bold pt-2"> {p.name} </p></td>
-                    <td><p className = "brown fw-bold pt-2"> ${p.price} </p></td>
+                    <td ><p className="fw-bold pt-2"> {p.name} </p></td>
+                    <td><p className="brown fw-bold pt-2"> ${p.price} </p></td>
                     <td>
                       <div className="d-flex">
                         <h6 className="btn btn-outline-warning mx-2 rounded-circle fw-bold" onClick={() => handleQuantity(p, -1)} >-</h6>
                         <h6 className="btn btn-outline-info rounded-circle fw-bold ">{p.amount}</h6>
                         <h6 className="btn btn-outline-warning mx-2 rounded-circle fw-bold" onClick={() => handleQuantity(p, +1)} >+</h6>
-                        <h6
-                          className="btn btn-outline-danger rounded-circle fw-bold"
-                          onClick={() => removeCartItem(p._id)}
-                        >
-                          X
-                        </h6>
+
                       </div>
+                    </td>
+                    <td>
+                      <h6
+                        className="btn btn-outline-danger rounded-circle fw-bold"
+                        onClick={() => removeCartItem(p._id)}
+                      >
+                        X
+                      </h6>
                     </td>
                   </tr>
                 ))}

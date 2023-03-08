@@ -2,7 +2,7 @@ import React from "react";
 import { NavLink } from "react-router-dom";
 const UserMenu = () => {
   return (
-    <div>
+    <div className="userMenu">
       <div className="text-center">
         <div className="list-group">
           <h4>Dashboard</h4>

@@ -3,7 +3,11 @@ import React, { useState, useEffect } from "react";
 import Layout from "../components/Layout/Layout";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
+import toast from "react-hot-toast";
+import './HomeStyle.css'
+import { useCart } from "../context/cart";
 const CategoryProduct = () => {
+  const [cart, setCart] = useCart();
   const params = useParams();
   const navigate = useNavigate();
   const [products, setProducts] = useState([]);
@@ -24,10 +28,24 @@ const CategoryProduct = () => {
     }
   };
 
+  const setCartItem = (p) => {
+    if (cart.some(item => item._id === p._id)) {
+      toast.error("You have already added this Item");
+      return;
+    } else {
+      setCart([...cart, p]);
+      localStorage.setItem(
+        "cart",
+        JSON.stringify([...cart, p])
+      );
+      toast.success("Item Added to cart");
+    }
+  }
+
   return (
     <Layout>
-      <div className="container mt-3">
-        <h4 className="text-center">Category - {category?.name}</h4>
+      <div className="container ProductArea pt-4 mt-4">
+        <h4 className="text-center mt-5">Category - {category?.name}</h4>
         <h6 className="text-center">{products?.length} result found </h6>
         <div className="row">
           <div className="col-md-9 offset-1">
@@ -44,19 +62,20 @@ const CategoryProduct = () => {
                     alt={p.name}
                   />
                   <div className="card-body">
-                    <h5 className="card-title">{p.name}</h5>
-                    <p className="card-text">
-                      {p.description.substring(0, 30)}...
-                    </p>
-                    <p className="card-text"> $ {p.price}</p>
+                    <h5>{p.name}</h5>
+                    <p> {p.description.substring(0, 30)}...</p>
+                    <h4> ${p.price}</h4>
                     <button
-                      className="btn btn-primary ms-1"
+                      className=" button-1 ms-1"
                       onClick={() => navigate(`/product/${p.slug}`)}
                     >
                       More Details
                     </button>
-                    <button className="btn btn-secondary ms-1">
-                      ADD TO CART
+                    <button
+                      className=" button-2 ms-1"
+                      onClick={() => setCartItem(p)}
+                    >
+                      Add To Cart
                     </button>
                   </div>
                 </div>
