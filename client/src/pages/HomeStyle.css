@@ -1,5 +1,6 @@
 .customSlider{
 position: relative;
+padding-top: 60px;
 }
 
 .customSlider img{
@@ -70,6 +71,8 @@ height: 550px;
     margin-left: 11px;
 }
 
+
+ /* homepage area */
 
 .ProductArea{ 
     text-align: center;
@@ -157,7 +160,12 @@ height: 550px;
     box-shadow: rgba(0, 0, 0, 0.16) 0px 3px 6px, rgba(0, 0, 0, 0.23) 0px 3px 6px;
 }
 
-.productDetails{}
+
+/* Product details */
+
+.productDetails{
+    margin-top: 80px;
+}
 .productDetails h2{
     font-size: 25px;
     margin: 50px 0;
@@ -213,4 +221,35 @@ height: 550px;
     font-size: 18px;
     font-weight: 700;
 }
-.productDetails{}
+
+
+/* cart css */
+
+.cart{
+    padding-top: 80px;
+    margin-bottom: 100px;
+}
+.brown{
+    color: #f1750b;
+}
+.paymentArea{
+    height: max-content;
+
+}
+
+.paymentArea .button-1{
+    padding: 5px 15px;
+    background-color: #f1750b;
+    border: 2px solid #f1750b ;
+    color: #fff;
+    font-weight: 600;
+    border-radius: 4px;
+    font-size: 14px;
+    margin-top: 20px;
+} 
+
+.paymentArea .button-1:hover{
+    background-color: #b25708;
+    border: 2px solid #b25708 ;
+    color: #fff;
+}

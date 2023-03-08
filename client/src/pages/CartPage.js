@@ -49,7 +49,6 @@ const CartPage = () => {
     const ind = cart.indexOf(item);
     const arr = cart;
     arr[ind].amount += d;
-
     if (arr[ind].amount === 0) arr[ind].amount = 1;
     setCart([...arr]);
     localStorage.setItem("cart", JSON.stringify(arr));
@@ -92,23 +91,65 @@ const CartPage = () => {
 
   return (
     <Layout>
-      <div className="container">
+      <div className="container cart">
         <div className="row">
           <div className="col-md-12">
-            <h1 className="text-center bg-light p-2 mb-1">
-              {`Hello ${auth?.token && auth?.user?.name}`}
-            </h1>
-            <h4 className="text-center">
+            <h4 className="fw-bold mb-1 mt-2">
+              {`Hello, ${ auth?.token &&  auth?.user?.name}`}
+            </h4>
+            <h6 className="mb-5 brown">
               {cart?.length
-                ? `You Have ${cart.length} items in your cart ${auth?.token ? "" : "please login to checkout"
+                ? `You Have  ${cart.length} items in your cart ${auth?.token ? "" : "please login to checkout"
                 }`
                 : " Your Cart Is Empty"}
-            </h4>
+            </h6>
           </div>
         </div>
         <div className="row">
-          <div className="col-md-8">
-            {cart?.map((p) => (
+          <div className="col-md-7">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Image</th>
+                  <th>Name</th>
+                  <th>Price</th>
+                  <th>Quantity</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cart?.map((p) => (
+                  <tr className="shadow p-2 mb-2 bg-body-tertiary rounded">
+                    <td>
+                      <img
+                        src={`/api/v1/product/product-photo/${p._id}`}
+                        alt={p.name}
+                        width={"60px"}
+                        height={"60px"}
+                      /></td>
+                    <td ><p className = "fw-bold pt-2"> {p.name} </p></td>
+                    <td><p className = "brown fw-bold pt-2"> ${p.price} </p></td>
+                    <td>
+                      <div className="d-flex">
+                        <h6 className="btn btn-outline-warning mx-2 rounded-circle fw-bold" onClick={() => handleQuantity(p, -1)} >-</h6>
+                        <h6 className="btn btn-outline-info rounded-circle fw-bold ">{p.amount}</h6>
+                        <h6 className="btn btn-outline-warning mx-2 rounded-circle fw-bold" onClick={() => handleQuantity(p, +1)} >+</h6>
+                        <h6
+                          className="btn btn-outline-danger rounded-circle fw-bold"
+                          onClick={() => removeCartItem(p._id)}
+                        >
+                          X
+                        </h6>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+
+              </tbody>
+            </table>
+
+
+
+            {/* {cart?.map((p) => (
               <div className="row mb-2 p-3 card flex-row">
                 <div className="col-md-4">
                   <img
@@ -132,26 +173,26 @@ const CartPage = () => {
                 </div>
                 <div className="col-md-2">
                   <div className="d-flex">
-                    <button className="btn btn-primary mx-2" onClick={() => handleQuantity(p, -1)} >-</button>
+                    <button className="btn btn-outline-warning mx-2" onClick={() => handleQuantity(p, -1)} >-</button>
                     <h6>{p.amount}</h6>
-                    <button className="btn btn-primary mx-2" onClick={() => handleQuantity(p, +1)} >+</button>
+                    <button className="btn btn-outline-warning mx-2" onClick={() => handleQuantity(p, +1)} >+</button>
                   </div>
                 </div>
               </div>
-            ))}
+            ))} */}
           </div>
-          <div className="col-md-4 text-center">
-            <h2>Cart Summary</h2>
-            <p>Total | Checkout | Payment</p>
+          <div className="col-md-1"></div>
+          <div className="col-md-4  shadow pt-4 p-4">
+            <h3 className="fw-bold text-center">Cart Summary</h3>
+            <p className="text-center fw-bold">Total | Checkout | Payment</p>
             <hr />
-            <h4>Total : {totalPrice()} </h4>
+            <h4 className="fw-bold brown text-center mb-4 mt-4">Total : {totalPrice()} </h4>
             {auth?.user?.address ? (
               <>
-                <div className="mb-3">
-                  <h4>Current Address</h4>
-                  <h5>{auth?.user?.address}</h5>
+                <div className="mb-3 mt-3">
+                  <h6><span className="brown">Current Address:</span> {auth?.user?.address}  </h6>
                   <button
-                    className="btn btn-outline-warning"
+                    className="btn btn-outline-dark mt-2 fw-bold"
                     onClick={() => navigate("/dashboard/user/profile")}
                   >
                     Update Address
@@ -181,7 +222,7 @@ const CartPage = () => {
                 )}
               </div>
             )}
-            <div className="mt-2">
+            <div className="mt-2 paymentArea">
               {!clientToken || !cart?.length ? (
                 ""
               ) : (
@@ -197,7 +238,7 @@ const CartPage = () => {
                   />
 
                   <button
-                    className="btn btn-primary"
+                    className="button-1"
                     onClick={handlePayment}
                     disabled={loading || !instance || !auth?.user?.address}
                   >
