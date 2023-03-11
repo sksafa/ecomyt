@@ -105,6 +105,18 @@ nav .active {
   justify-content: center;
 }
 
+/* uidhfd hdhfdsh   */
+
+.cat-btn {
+  padding: 40px 0px;
+  font-size: 24px;
+  text-transform: uppercase;
+}
+.cat-btn:hover {
+  background-color: #434343;
+  color: white;
+}
+
 /* ==================== */
 .product-link {
   text-decoration: none !important;
@@ -113,4 +125,96 @@ nav .active {
 
 .userDashboard{
   margin-top: 100px;
+}
+
+.profileArea{
+  background-color: #f1750b;
+  padding: 10px;
+  border-radius: 5px 5px 0 0;
+}
+.profileArea img{
+  height: 100px;
+  width: 100px;
+  border-radius: 50%;
+  margin-top: 20px;
+}
+.profileArea h4{
+  color: #fff;
+  margin-top: 10px;
+  font-weight: 700;
+}
+.profileArea h6{
+  color: #fff;
+  margin-top: 10px;
+  font-weight: 700;
+}
+
+.ProfileNav{
+  box-shadow: rgba(0, 0, 0, 0.15) 0px 5px 15px 0px;
+}
+
+.ProfileNav nav a{
+  color: #000;
+  font-size:15px
+}
+
+.ProfileNav .list-group-item:first-child {
+  border-top-left-radius: 0; 
+  border-top-right-radius: 0;
+}
+
+.ProfileNav .list-group-item.active {
+  z-index: 2;
+  color: var(--bs-list-group-active-color);
+  background-color:#000 ;
+  border-color: #000;
+}
+
+
+/* //admin dashboard */
+.adminDashboard{
+  margin-top: 100px;
+}
+
+.adminDashboard .profileArea{
+  background-color: #f1750b;
+  padding: 10px;
+  border-radius: 5px 5px 0 0;
+}
+.adminDashboard .profileArea img{
+  height: 100px;
+  width: 100px;
+  border-radius: 50%;
+  margin-top: 20px;
+}
+.adminDashboard .profileArea h4{
+  color: #fff;
+  margin-top: 10px;
+  font-weight: 700;
+}
+.adminDashboard .profileArea h6{
+  color: #fff;
+  margin-top: 10px;
+  font-weight: 700;
+}
+
+.adminDashboard .ProfileNav{
+  box-shadow: rgba(0, 0, 0, 0.15) 0px 5px 15px 0px;
+}
+
+.adminDashboard .ProfileNav nav a{
+  color: #000;
+  font-size:15px
+}
+
+.adminDashboard .ProfileNav .list-group-item:first-child {
+  border-top-left-radius: 0; 
+  border-top-right-radius: 0;
+}
+
+.adminDashboard .ProfileNav .list-group-item.active {
+  z-index: 2;
+  color: var(--bs-list-group-active-color);
+  background-color:#000 ;
+  border-color: #000;
 }
