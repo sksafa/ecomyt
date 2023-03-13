@@ -6,14 +6,15 @@
     justify-content: center;
     min-height: 80vh;
     flex-direction: column;
-    background-color: #ffdee9;
-    background-image: linear-gradient(0deg, #ffdee9 0%, #b5fffc 100%);
+    margin-top: 20px;
+    /* background-color: #ffdee9;
+    background-image: linear-gradient(0deg, #ffdee9 0%, #b5fffc 100%); */
   }
   
   .form-container form {
     box-shadow: rgba(0, 0, 0, 0.35) 0px 5px 15px;
     padding: 20px;
-    background-color: #fff;
+    background-color: #f5620c;
   }
   
   .form-container form .title {
@@ -21,6 +22,7 @@
     margin-bottom: 15px;
     font-weight: bold;
     font-family: "Playfair Display", serif;
+    color: #fff;
   }
   
   .form-container form input {

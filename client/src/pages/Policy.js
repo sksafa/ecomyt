@@ -5,8 +5,8 @@ import Layout from "./../components/Layout/Layout";
 const Policy = () => {
   return (
     <Layout title={'Policy'}>
-      <div className="row contactus ">
-        <div className="col-md-6 ">
+      <div className="row contactus mt-5 ">
+        <div className="col-md-6 mt-5 ">
           <img
             src="/images/contactus.jpeg"
             alt="contactus"

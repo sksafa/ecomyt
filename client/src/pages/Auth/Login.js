@@ -82,6 +82,12 @@ const Login = () => {
                         LOGIN
                     </button>
                 </form>
+
+                <div>
+                    <h4 className="mt-3">Admin Login</h4>
+                    <p className="m-0 p-0"><span className="fw-bold">Email:</span> admin@gmail.com</p>
+                    <p className="m-0 p-0"><span className="fw-bold">password:</span> 123456</p>
+                </div>
             </div>
         </Layout>
     );

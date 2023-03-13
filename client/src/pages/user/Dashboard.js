@@ -16,7 +16,6 @@ const Dashboard = () => {
     try {
       const { data } = await axios.get("/api/v1/auth/orders");
       setOrders(data);
-      console.log("order data",data );
     } catch (error) {
       console.log(error);
     }
