@@ -217,6 +217,7 @@ export const getOrdersController = async (req, res) => {
     });
   }
 };
+
 //orders
 export const getAllOrdersController = async (req, res) => {
   try {
@@ -235,6 +236,29 @@ export const getAllOrdersController = async (req, res) => {
     });
   }
 };
+
+export const getAllOrdersByStatusController = async (req, res) => {
+  const { status } = req.params;
+  console.log("first", status)
+  try {
+    const orders = await orderModel
+      .find({status:status})
+      .populate("products", "-photo")
+      .populate("buyer", "name")
+      .sort({ createdAt: "-1" });
+    res.json(orders);
+  } catch (error) {
+    console.log(error);
+    res.status(500).send({
+      success: false,
+      message: "Error WHile Geting Orders",
+      error,
+    });
+  }
+};
+
+
+
 
 //order status
 export const orderStatusController = async (req, res) => {
