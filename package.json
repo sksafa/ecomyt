@@ -1,0 +1,26 @@
+{
+  "name": "bentbound",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bent & Bound e-commerce management system – Next.js client + Express/PostgreSQL API",
+  "scripts": {
+    "install:all": "npm install && npm install --prefix server && npm install --prefix client",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "db:migrate": "npm run db:deploy --prefix server",
+    "db:seed": "npm run db:seed --prefix server",
+    "db:seed:demo": "npm run db:seed:demo --prefix server",
+    "dev": "concurrently -k -n api,worker,web -c cyan,yellow,magenta \"npm run dev --prefix server\" \"npm run worker:dev --prefix server\" \"npm run dev --prefix client\"",
+    "dev:api": "npm run dev --prefix server",
+    "dev:worker": "npm run worker:dev --prefix server",
+    "dev:web": "npm run dev --prefix client",
+    "test": "npm test --prefix server",
+    "typecheck": "npm run typecheck --prefix server && npm run typecheck --prefix client",
+    "lint": "npm run lint --prefix client",
+    "build": "npm run build --prefix server && npm run build --prefix client",
+    "start": "concurrently -k -n api,worker,web \"npm start --prefix server\" \"npm run worker --prefix server\" \"npm start --prefix client\""
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.6"
+  }
+}

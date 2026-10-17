@@ -1,0 +1,53 @@
+/* Bent & Bound storefront theme – scoped to .bb-store so the admin's teal theme is untouched.
+   Apply .bb-store to the store wrapper AND to portalled content (sheets/dialogs) rendered outside it. */
+.bb-store {
+  --bb-maroon: #8a1c2b;
+  --bb-maroon-dark: #6d1522;
+  --bb-ivory: #fbf7f0;
+  --bb-cream: #f3ebdd;
+  --bb-gold: #b08a4a;
+  --bb-ink: #2a1d1a;
+
+  --background: var(--bb-ivory);
+  --foreground: var(--bb-ink);
+  --card: #fffdf9;
+  --card-foreground: var(--bb-ink);
+  --popover: #fffdf9;
+  --popover-foreground: var(--bb-ink);
+  --primary: var(--bb-maroon);
+  --primary-foreground: #fffaf3;
+  --secondary: var(--bb-cream);
+  --secondary-foreground: var(--bb-ink);
+  --muted: #f1e9dc;
+  --muted-foreground: #6f625a;
+  --accent: #f3e4dc;
+  --accent-foreground: var(--bb-maroon-dark);
+  --border: #e6dccd;
+  --input: #dccfbd;
+  --ring: #b8505e;
+
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.bb-store .font-display,
+.bb-store.font-display {
+  font-family: var(--font-display), Georgia, "Times New Roman", serif;
+}
+
+/* CMS rich text (server-sanitised HTML) */
+.bb-prose { line-height: 1.75; font-size: 1rem; }
+.bb-prose h1, .bb-prose h2, .bb-prose h3 { font-family: var(--font-display), Georgia, serif; color: var(--bb-maroon); line-height: 1.2; margin: 1.4em 0 0.5em; }
+.bb-prose h1 { font-size: 2rem; }
+.bb-prose h2 { font-size: 1.6rem; }
+.bb-prose h3 { font-size: 1.3rem; }
+.bb-prose p { margin: 0.8em 0; }
+.bb-prose ul { list-style: disc; padding-left: 1.4em; margin: 0.8em 0; }
+.bb-prose ol { list-style: decimal; padding-left: 1.4em; margin: 0.8em 0; }
+.bb-prose a { color: var(--bb-maroon); text-decoration: underline; text-underline-offset: 3px; }
+.bb-prose img { max-width: 100%; height: auto; border-radius: 0.5rem; }
+.bb-prose blockquote { border-left: 3px solid var(--bb-gold); padding-left: 1em; font-style: italic; color: var(--muted-foreground); }
+
+.bb-scroll-x { scrollbar-width: none; }
+.bb-scroll-x::-webkit-scrollbar { display: none; }
+.pb-safe { padding-bottom: max(0.75rem, env(safe-area-inset-bottom)); }

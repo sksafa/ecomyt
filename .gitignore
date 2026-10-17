@@ -1,10 +1,10 @@
 # compiled output
 /dist
-/node_modules
+node_modules
 
-package-lock.json
 # local env files
 .env
+.env*.local
 
 # Log files
 npm-debug.log*
@@ -34,13 +34,8 @@ lerna-debug.log*
 *.sln
 *.sw?
 
-docs
 stats.html
-src/prisma
-bin/
 dist
-tar
-log
 
 # IDE - VSCode
 .vscode/*
@@ -48,8 +43,10 @@ log
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
-src/@generated/*
-static/*
 yarn.lock
-server/@generated
 .next/
+
+# environment files with secrets
+.env.production
+server/.env
+client/.env.local

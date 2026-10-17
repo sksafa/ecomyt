@@ -1,0 +1,86 @@
+# Production stack: `docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build`
+# Only the web (3000) and API (8080) ports are published, on localhost, for a TLS reverse proxy (Caddy/Nginx) in front.
+# Postgres and Redis are reachable only on the internal network.
+name: bentbound-prod
+
+x-api-env: &api-env
+  NODE_ENV: production
+  PORT: 8080
+  DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+  REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+  CLIENT_URL: ${PUBLIC_WEB_URL}
+  API_PUBLIC_URL: ${PUBLIC_API_URL}
+  SESSION_SECRET: ${SESSION_SECRET}
+  ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+  COOKIE_SECURE: "true"
+  LOG_LEVEL: info
+  SMTP_URL: ${SMTP_URL:-}
+  MAIL_FROM: ${MAIL_FROM:-}
+  META_PIXEL_ID: ${META_PIXEL_ID:-}
+  META_CAPI_ACCESS_TOKEN: ${META_CAPI_ACCESS_TOKEN:-}
+  WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+  WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+  SSLCOMMERZ_STORE_ID: ${SSLCOMMERZ_STORE_ID:-}
+  SSLCOMMERZ_STORE_PASSWORD: ${SSLCOMMERZ_STORE_PASSWORD:-}
+  SSLCOMMERZ_SANDBOX: ${SSLCOMMERZ_SANDBOX:-false}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"], interval: 10s, retries: 10 }
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+    volumes: [redisdata:/data]
+    healthcheck: { test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"], interval: 10s, retries: 10 }
+
+  migrate:
+    build: ./server
+    command: ["npx", "prisma", "migrate", "deploy"]
+    environment: *api-env
+    depends_on: { postgres: { condition: service_healthy } }
+    restart: "no"
+
+  api:
+    build: ./server
+    restart: unless-stopped
+    environment: *api-env
+    volumes: [uploads:/app/uploads]
+    ports: ["127.0.0.1:8080:8080"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    stop_grace_period: 20s
+
+  worker:
+    build: ./server
+    command: ["node", "dist/worker.js"]
+    restart: unless-stopped
+    environment: *api-env
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    stop_grace_period: 30s
+
+  web:
+    build:
+      context: ./client
+      args: { NEXT_PUBLIC_META_PIXEL_ID: "${META_PIXEL_ID:-}", NEXT_PUBLIC_SITE_URL: "${PUBLIC_WEB_URL}" }
+    restart: unless-stopped
+    environment:
+      API_URL: http://api:8080
+    ports: ["127.0.0.1:3000:3000"]
+    depends_on: [api]
+
+volumes:
+  pgdata:
+  redisdata:
+  uploads:
