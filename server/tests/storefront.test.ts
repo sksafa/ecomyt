@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { api, staff, unique, type Client } from "./helpers.js";
 import { dhakaArea, makeProduct, stockOf, testPhone } from "./fixtures.js";
 import { prisma } from "../src/lib/prisma.js";
+import { clearSettingsCache } from "../src/lib/settings.js";
 
 let admin: Client;
 let published: Awaited<ReturnType<typeof makeProduct>>;
@@ -26,11 +27,11 @@ beforeAll(async () => {
 });
 
 async function checkoutBody(variantId: string, extra: Record<string, unknown> = {}) {
-  const area = await dhakaArea();
   return {
     customer: { name: "Farzana Akter", phone: testPhone() },
-    shipping: { addressLine: "House 7, Road 11, Banani, Dhaka", areaId: area.id },
+    shipping: { addressLine: "House 7, Road 11, Banani, Dhaka" },
     items: [{ variantId, quantity: 1 }],
+    deliveryOption: "INSIDE_DHAKA",
     paymentMethod: "COD",
     ...extra,
   };
@@ -198,5 +199,68 @@ describe("order lookup", () => {
     const unknown = await api.get(`/api/v1/storefront/orders/BB999999999`).query({ phone: local });
     expect(unknown.status).toBe(404);
     expect(wrong.body.error.message).toBe(unknown.body.error.message);
+  });
+});
+
+describe("checkout delivery options", () => {
+  const checkout = (body: object) => api.post("/api/v1/storefront/checkout").set("Idempotency-Key", `dlv-${unique()}-xx`).send(body);
+
+  it("requires a valid option and prices it from the stored settings (never from the client)", async () => {
+    const options = await api.get("/api/v1/storefront/delivery-options");
+    expect(options.status).toBe(200);
+    expect(options.body.data).toEqual([
+      expect.objectContaining({ code: "INSIDE_DHAKA", charge: "70.00", isDefault: false }),
+      expect.objectContaining({ code: "OUTSIDE_DHAKA", charge: "120.00", isDefault: true }),
+    ]);
+
+    const variantId = published.variants[0].id;
+    const missing = await checkout({ ...(await checkoutBody(variantId)), deliveryOption: undefined });
+    expect(missing.status).toBe(422);
+    const bogus = await checkout(await checkoutBody(variantId, { deliveryOption: "MARS" }));
+    expect(bogus.status).toBe(422);
+
+    // a tampered client-side delivery charge is ignored
+    const inside = await checkout(await checkoutBody(variantId, { deliveryOption: "INSIDE_DHAKA", deliveryCharge: "0" }));
+    expect(inside.status).toBe(201);
+    expect(inside.body.data.deliveryCharge).toBe("70.00");
+    expect(inside.body.data.total).toBe((Number(inside.body.data.subtotal) + 70).toFixed(2));
+    const o1 = await prisma.order.findUniqueOrThrow({ where: { orderNumber: inside.body.data.orderNumber }, include: { zone: true } });
+    expect(o1.deliveryOption).toBe("INSIDE_DHAKA");
+    expect(o1.deliveryCharge.toFixed(2)).toBe("70.00");
+    expect(o1.zone?.code).toBe("INSIDE_DHAKA");
+
+    const outside = await checkout(await checkoutBody(variantId, { deliveryOption: "OUTSIDE_DHAKA" }));
+    expect(outside.body.data.deliveryCharge).toBe("120.00");
+    expect(outside.body.data.total).toBe((Number(outside.body.data.subtotal) + 120).toFixed(2));
+    const o2 = await prisma.order.findUniqueOrThrow({ where: { orderNumber: outside.body.data.orderNumber } });
+    expect(o2.deliveryOption).toBe("OUTSIDE_DHAKA");
+
+    const lookup = await api.get(`/api/v1/storefront/orders/${o2.orderNumber}?phone=${o2.shippingPhone}`);
+    expect(lookup.body.data.totals.deliveryOption).toBe("OUTSIDE_DHAKA");
+  });
+
+  it("uses the charges an admin saves, persisted in the database", async () => {
+    const admin = await staff(["admin"]);
+    const agent = await staff(["confirmation_agent"]);
+    expect((await agent.put("/api/v1/settings/checkout", { insideDhakaCharge: "1" })).status).toBe(403);
+    expect((await admin.put("/api/v1/settings/checkout", { insideDhakaCharge: "-5" })).status).toBe(422);
+    expect((await admin.put("/api/v1/settings/checkout", { insideDhakaCharge: "abc" })).status).toBe(422);
+
+    try {
+      const saved = await admin.put("/api/v1/settings/checkout", { insideDhakaCharge: "80", outsideDhakaCharge: "150.50" });
+      expect(saved.status).toBe(200);
+      const row = await prisma.setting.findUniqueOrThrow({ where: { key: "checkout" } });
+      expect(row.value).toMatchObject({ insideDhakaCharge: "80", outsideDhakaCharge: "150.50" });
+
+      clearSettingsCache(); // as after a restart: values come from the database
+      const options = await api.get("/api/v1/storefront/delivery-options");
+      expect(options.body.data.map((o: { charge: string }) => o.charge)).toEqual(["80.00", "150.50"]);
+
+      const res = await checkout(await checkoutBody(published.variants[0].id, { deliveryOption: "OUTSIDE_DHAKA" }));
+      expect(res.body.data.deliveryCharge).toBe("150.50");
+      expect(res.body.data.total).toBe((Number(res.body.data.subtotal) + 150.5).toFixed(2));
+    } finally {
+      await admin.put("/api/v1/settings/checkout", { insideDhakaCharge: "70.00", outsideDhakaCharge: "120.00" });
+    }
   });
 });

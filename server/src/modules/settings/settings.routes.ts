@@ -56,9 +56,14 @@ const GROUP_SCHEMAS = {
     estimatedCourierFee: z.partialRecord(z.enum(["INSIDE_DHAKA", "SUB_DHAKA", "OUTSIDE_DHAKA"]), money2),
     estimatedReturnFeeRatio: z.string().regex(/^\d+(\.\d{1,4})?$/).refine((v) => Number(v) <= 2, { message: "Ratio must be between 0 and 2" }),
   }).partial(),
+  checkout: z.strictObject({
+    insideDhakaCharge: money2.refine((v) => Number(v) <= 10_000, { message: "Delivery charge must be at most ৳10,000" }),
+    outsideDhakaCharge: money2.refine((v) => Number(v) <= 10_000, { message: "Delivery charge must be at most ৳10,000" }),
+  }).partial(),
   meta: z.strictObject({
     pixelId: z.string().trim().regex(/^\d{0,20}$/, "Pixel ID is numeric"),
     capiEnabled: z.boolean(),
+    purchaseValue: z.enum(["ORDER_TOTAL", "PRODUCT_VALUE"]),
   }).partial(),
   statusLabels: z.partialRecord(
     z.enum(statusKeys),
@@ -76,7 +81,10 @@ const GROUP_SCHEMAS = {
   cms: z.strictObject({
     announcementBar: z.strictObject({ enabled: z.boolean(), text: z.string().trim().max(300), textBn: z.string().trim().max(300), link: safeUrl.or(z.literal("")) }).partial(),
     footer: z.strictObject({ about: z.string().trim().max(2000), facebookUrl: safeUrl.or(z.literal("")), instagramUrl: safeUrl.or(z.literal("")), whatsapp: z.string().trim().max(30) }).partial(),
-    homepage: z.strictObject({ featuredCollectionSlugs: z.array(z.string().trim().min(1).max(100)).max(20) }).partial(),
+    homepage: z.strictObject({
+      featuredCollectionSlugs: z.array(z.string().trim().min(1).max(100)).max(20),
+      landingProductSlug: z.string().trim().max(200).regex(/^[a-z0-9-]*$/, "Use the product's URL slug"),
+    }).partial(),
   }).partial(),
 } satisfies Record<SettingKey, z.ZodType>;
 

@@ -51,3 +51,55 @@
 .bb-scroll-x { scrollbar-width: none; }
 .bb-scroll-x::-webkit-scrollbar { display: none; }
 .pb-safe { padding-bottom: max(0.75rem, env(safe-area-inset-bottom)); }
+
+/* Homepage landing page ("/") – the brand's sales-page look: warm ivory, deep maroon, antique gold. */
+.bb-landing {
+  --lp-maroon: #641f2b;
+  --lp-maroon-deep: #45131d;
+  --lp-ink: #2b2522;
+  --lp-muted: #706862;
+  --lp-gold: #b18a56;
+  --lp-gold-soft: #d8b77c;
+  --lp-cream: #f3eee8;
+  --lp-sand: #ece6df;
+
+  --primary: var(--lp-maroon);
+  --ring: #a0505d;
+  --foreground: var(--lp-ink);
+  --muted-foreground: var(--lp-muted);
+  --font-bengali: var(--font-landing);
+
+  font-family: var(--font-landing), system-ui, sans-serif;
+  color: var(--lp-ink);
+  background: #fff;
+}
+.bb-landing .lp-serif {
+  font-family: Georgia, var(--font-landing-serif-bn), "Times New Roman", serif;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+.bb-landing .lp-eyebrow {
+  font-size: 0.72rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--lp-gold);
+  font-weight: 500;
+}
+.bb-landing .lp-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 3.25rem;
+  padding: 0 2rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 1.05rem;
+  color: #fff;
+  background: var(--lp-maroon);
+  box-shadow: 0 10px 24px -12px rgb(100 31 43 / 0.7);
+  transition: background-color 0.15s;
+}
+.bb-landing .lp-cta:hover { background: var(--lp-maroon-deep); }
+.bb-landing .lp-cta:focus-visible { outline: 2px solid var(--lp-gold); outline-offset: 3px; }
+.bb-landing .lp-rule { width: 4.5rem; height: 1px; background: var(--lp-gold); }

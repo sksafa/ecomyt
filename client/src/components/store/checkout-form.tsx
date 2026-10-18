@@ -3,14 +3,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
-import { AlertCircle, CreditCard, Loader2, Lock, Wallet } from "lucide-react";
+import { AlertCircle, Check, CreditCard, Loader2, Lock, Truck, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiError, errorMessage, newIdempotencyKey, request } from "@/lib/api";
 import { bdt } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { cart } from "./cart";
-import { attributionPayload, contentData, track } from "./tracking";
-import type { CheckoutResult, LocDivision, OnlineOptions, ShippingQuote } from "./types";
+import { attributionPayload, firePurchase, initiateCheckoutOnce } from "./tracking";
+import type { CheckoutResult, DeliveryOptionCode, DeliveryOptionInfo, OnlineOptions } from "./types";
 
 export interface CheckoutLine {
   variantId: string;
@@ -23,6 +23,7 @@ export interface CheckoutLine {
   weightGrams?: number | null;
 }
 
+
 const KEY_STORE = "bb_checkout_key";
 export const LAST_ORDER_STORE = "bb_last_order";
 
@@ -32,15 +33,16 @@ export function normalizePhone(raw: string) {
   return m ? m[1] : null;
 }
 
-type Field = "name" | "phone" | "division" | "district" | "area" | "address" | "note" | "form";
+type Field = "name" | "phone" | "address" | "delivery" | "form";
 const SERVER_FIELD: Record<string, Field> = {
   "customer.name": "name",
   "customer.phone": "phone",
   "shipping.addressLine": "address",
-  "shipping.districtId": "district",
-  "shipping.areaId": "area",
-  "shipping.note": "note",
+  deliveryOption: "delivery",
 };
+
+/** Pre-selected when the form loads (the server marks it with isDefault too). */
+const FALLBACK_DEFAULT: DeliveryOptionCode = "OUTSIDE_DHAKA";
 
 function FieldError({ id, msg }: { id: string; msg?: string }) {
   if (!msg) return null;
@@ -91,11 +93,8 @@ export function CheckoutForm({
   const uid = useId();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [divisionId, setDivisionId] = useState("");
-  const [districtId, setDistrictId] = useState("");
-  const [areaId, setAreaId] = useState("");
   const [address, setAddress] = useState("");
-  const [note, setNote] = useState("");
+  const [deliveryChoice, setDeliveryChoice] = useState<DeliveryOptionCode | null>(null);
   const [website, setWebsite] = useState(""); // honeypot
   const [pay, setPay] = useState<string>("COD"); // "COD" or a gateway code
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
@@ -104,12 +103,11 @@ export function CheckoutForm({
   const initiated = useRef(false);
 
   const subtotal = lines.reduce((s, l) => s + Number(l.price) * l.quantity, 0);
-  const knownWeight = lines.every((l) => l.weightGrams) ? lines.reduce((s, l) => s + (l.weightGrams ?? 0) * l.quantity, 0) : undefined;
 
   const fireInitiate = () => {
     if (initiated.current || !lines.length) return;
     initiated.current = true;
-    track("InitiateCheckout", contentData(lines));
+    initiateCheckoutOnce(lines.map((l) => ({ sku: l.sku, quantity: l.quantity, price: l.price, variantId: l.variantId })));
   };
   useEffect(() => {
     if (initiateOnMount) fireInitiate();
@@ -117,35 +115,24 @@ export function CheckoutForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initiateOnMount, lines.length > 0]);
 
-  const locations = useQuery({ queryKey: ["store", "locations"], queryFn: () => api<LocDivision[]>("/shipping/locations"), staleTime: Infinity });
+  // delivery charges always come from the server (configured by the admin), never from frontend constants
+  const deliveryOptions = useQuery({ queryKey: ["store", "delivery-options"], queryFn: () => api<DeliveryOptionInfo[]>("/storefront/delivery-options"), staleTime: 60_000 });
   const online = useQuery({ queryKey: ["store", "online-options"], queryFn: () => api<OnlineOptions>("/payments/online/options"), staleTime: 5 * 60_000, retry: false });
   const gateways = online.data?.gateways ?? [];
 
-  const division = locations.data?.find((d) => d.id === divisionId);
-  const district = division?.districts.find((d) => d.id === districtId);
-  const areas = district?.areas ?? [];
-
-  const quote = useQuery({
-    queryKey: ["store", "quote", districtId, areaId, knownWeight, subtotal.toFixed(2)],
-    queryFn: () =>
-      api<ShippingQuote>("/shipping/quote", {
-        method: "POST",
-        body: { districtId, areaId: areaId || null, ...(knownWeight ? { weightGrams: Math.min(100_000, Math.round(knownWeight)) } : {}), merchandiseTotal: subtotal.toFixed(2) },
-      }),
-    enabled: !!districtId && lines.length > 0,
-    staleTime: 60_000,
-  });
-  const delivery = quote.data ? Number(quote.data.deliveryCharge) : null;
+  const options = deliveryOptions.data ?? [];
+  // until the customer picks, the default (Outside Dhaka) is selected
+  const selectedCode = deliveryChoice ?? options.find((o) => o.isDefault)?.code ?? FALLBACK_DEFAULT;
+  const selected = options.find((o) => o.code === selectedCode) ?? null;
+  const delivery = selected ? Number(selected.charge) : null;
   const total = subtotal + (delivery ?? 0);
 
   const validate = () => {
     const e: Partial<Record<Field, string>> = {};
     if (name.trim().length < 2) e.name = "Please enter your full name · আপনার নাম লিখুন";
     if (!normalizePhone(phone)) e.phone = "Enter a valid mobile number, e.g. 01712345678 · সঠিক মোবাইল নম্বর দিন";
-    if (!divisionId) e.division = "Select your division · বিভাগ নির্বাচন করুন";
-    if (!districtId) e.district = "Select your district · জেলা নির্বাচন করুন";
-    if (areas.length && !areaId) e.area = "Select your area / thana · এলাকা নির্বাচন করুন";
     if (address.trim().length < 5) e.address = "Enter your full address (house, road, area) · পূর্ণ ঠিকানা লিখুন";
+    if (!selected) e.delivery = "Delivery charges could not be loaded – please refresh · ডেলিভারি চার্জ লোড হয়নি";
     return e;
   };
 
@@ -170,16 +157,22 @@ export function CheckoutForm({
         idempotencyKey: checkoutKey(),
         body: {
           customer: { name: name.trim(), phone: mobile },
-          shipping: { addressLine: address.trim(), districtId, areaId: areaId || null, note: note.trim() || null },
+          shipping: { addressLine: address.trim() },
           items: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })),
+          // only the choice is sent; the server looks up the charge and calculates the total
+          deliveryOption: selectedCode,
           paymentMethod: gateway ? "SSLCOMMERZ" : "COD",
           attribution: attributionPayload(),
+          // Meta event_source_url for the Purchase (the server accepts only this store's own URLs)
+          eventSourceUrl: window.location.href,
           website,
         },
       });
       resetCheckoutKey();
       // Purchase: eventID matches the server-side Conversions API event so Meta deduplicates them
-      track("Purchase", contentData(lines, Number(res.total)), res.metaEventId);
+      // Purchase only from the backend's one-time payload (null on replayed / duplicate responses and for
+      // online payments, which fire after the payment is verified) – same eventID + parameters as the server event
+      firePurchase(res.metaPurchase);
       try {
         sessionStorage.setItem(LAST_ORDER_STORE, JSON.stringify({ order: res.orderNumber, phone: mobile }));
       } catch {
@@ -231,9 +224,12 @@ export function CheckoutForm({
           <span>Subtotal</span>
           <span>{bdt(subtotal)}</span>
         </div>
-        <div className="flex justify-between">
-          <span>Delivery charge · ডেলিভারি চার্জ</span>
-          <span>{!districtId ? <span className="text-muted-foreground">Select district</span> : quote.isFetching && !quote.data ? <Loader2 className="size-4 animate-spin" aria-label="Calculating" /> : quote.isError ? <span className="text-destructive">Unavailable</span> : bdt(delivery)}</span>
+        <div className="flex justify-between gap-3">
+          <span>
+            Delivery charge · ডেলিভারি চার্জ
+            {selected && <span className="block text-xs text-muted-foreground">{selected.label} · <span className="font-bengali">{selected.labelBn}</span></span>}
+          </span>
+          <span>{deliveryOptions.isLoading ? <Loader2 className="size-4 animate-spin" aria-label="Loading delivery charges" /> : selected ? bdt(delivery) : <span className="text-destructive">Unavailable</span>}</span>
         </div>
         <div className="flex justify-between border-t border-border pt-2 text-base font-semibold">
           <span>Total · মোট</span>
@@ -273,77 +269,6 @@ export function CheckoutForm({
         </div>
       </div>
 
-      <div className={cn("grid gap-4", !compact && "sm:grid-cols-3")}>
-        <div>
-          <label htmlFor={id("division")} className="mb-1.5 block text-sm font-medium">
-            Division · <span className="font-bengali">বিভাগ</span>
-          </label>
-          <select
-            id={id("division")}
-            value={divisionId}
-            onChange={(e) => {
-              setDivisionId(e.target.value);
-              fix("division");
-              setDistrictId("");
-              setAreaId("");
-            }}
-            disabled={locations.isLoading}
-            className={inputCls(!!errors.division)}
-            {...errProps("division")}
-          >
-            <option value="">{locations.isLoading ? "Loading…" : locations.isError ? "Could not load – refresh" : "Select division"}</option>
-            {locations.data?.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-                {d.nameBn ? ` · ${d.nameBn}` : ""}
-              </option>
-            ))}
-          </select>
-          <FieldError id={`${id("division")}-err`} msg={errors.division} />
-        </div>
-        <div>
-          <label htmlFor={id("district")} className="mb-1.5 block text-sm font-medium">
-            District · <span className="font-bengali">জেলা</span>
-          </label>
-          <select
-            id={id("district")}
-            value={districtId}
-            onChange={(e) => {
-              setDistrictId(e.target.value);
-              fix("district");
-              setAreaId("");
-            }}
-            disabled={!division}
-            className={inputCls(!!errors.district)}
-            {...errProps("district")}
-          >
-            <option value="">Select district</option>
-            {division?.districts.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-                {d.nameBn ? ` · ${d.nameBn}` : ""}
-              </option>
-            ))}
-          </select>
-          <FieldError id={`${id("district")}-err`} msg={errors.district} />
-        </div>
-        <div>
-          <label htmlFor={id("area")} className="mb-1.5 block text-sm font-medium">
-            Area / thana · <span className="font-bengali">এলাকা</span>
-          </label>
-          <select id={id("area")} value={areaId} onChange={(e) => (setAreaId(e.target.value), fix("area"))} disabled={!areas.length} className={inputCls(!!errors.area)} {...errProps("area")}>
-            <option value="">{district && !areas.length ? "Not needed" : "Select area"}</option>
-            {areas.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-                {a.nameBn ? ` · ${a.nameBn}` : ""}
-              </option>
-            ))}
-          </select>
-          <FieldError id={`${id("area")}-err`} msg={errors.area} />
-        </div>
-      </div>
-
       <div>
         <label htmlFor={id("address")} className="mb-1.5 block text-sm font-medium">
           Full address · <span className="font-bengali">সম্পূর্ণ ঠিকানা</span>
@@ -362,13 +287,35 @@ export function CheckoutForm({
         <FieldError id={`${id("address")}-err`} msg={errors.address} />
       </div>
 
-      <div>
-        <label htmlFor={id("note")} className="mb-1.5 block text-sm font-medium">
-          Note <span className="font-normal text-muted-foreground">(optional · ঐচ্ছিক)</span>
-        </label>
-        <input id={id("note")} value={note} onChange={(e) => (setNote(e.target.value), fix("note"))} maxLength={500} placeholder="Delivery instructions" className={inputCls(!!errors.note)} {...errProps("note")} />
-        <FieldError id={`${id("note")}-err`} msg={errors.note} />
-      </div>
+      <fieldset aria-describedby={errors.delivery ? `${id("delivery")}-err` : undefined}>
+        <legend className="mb-2 flex items-center gap-1.5 text-sm font-medium">
+          <Truck className="size-4 text-primary" aria-hidden /> Delivery area · <span className="font-bengali">ডেলিভারি এলাকা</span>
+        </legend>
+        {deliveryOptions.isLoading ? (
+          <div className="grid grid-cols-2 gap-2" aria-busy="true">
+            <div className="h-[72px] animate-pulse rounded-lg bg-secondary" />
+            <div className="h-[72px] animate-pulse rounded-lg bg-secondary" />
+          </div>
+        ) : deliveryOptions.isError ? (
+          <p className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive" role="alert">
+            <AlertCircle className="size-4 shrink-0" aria-hidden /> Could not load delivery charges.
+            <button type="button" className="font-medium underline" onClick={() => deliveryOptions.refetch()}>Try again</button>
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Delivery area">
+            {options.map((o) => (
+              <DeliveryOptionCard
+                key={o.code}
+                option={o}
+                checked={o.code === selectedCode}
+                name={`${uid}-delivery`}
+                onSelect={() => (setDeliveryChoice(o.code), fix("delivery"))}
+              />
+            ))}
+          </div>
+        )}
+        <FieldError id={`${id("delivery")}-err`} msg={errors.delivery} />
+      </fieldset>
 
       {/* honeypot: hidden from people and assistive tech; bots that fill it are rejected by the server */}
       <div aria-hidden className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
@@ -376,6 +323,15 @@ export function CheckoutForm({
         <input id={id("form") + "-w"} name="website" tabIndex={-1} autoComplete="off" value={website} onChange={(e) => setWebsite(e.target.value)} />
       </div>
 
+      {gateways.length === 0 ? (
+        <p className="flex items-center gap-2 rounded-lg border border-border bg-card p-3 text-sm">
+          <Wallet className="size-5 shrink-0 text-primary" aria-hidden />
+          <span>
+            <span className="block font-medium">Cash on delivery</span>
+            <span className="block font-bengali text-xs text-muted-foreground">পণ্য হাতে পেয়ে টাকা দিন</span>
+          </span>
+        </p>
+      ) : (
       <fieldset>
         <legend className="mb-2 text-sm font-medium">Payment · পেমেন্ট</legend>
         <div className="space-y-2">
@@ -393,6 +349,7 @@ export function CheckoutForm({
           ))}
         </div>
       </fieldset>
+      )}
 
       <div className="rounded-lg border border-border bg-secondary/50 p-4">{summary}</div>
 
@@ -419,6 +376,31 @@ function PayOption({ checked, onSelect, icon, title, sub, name }: { checked: boo
       <span>
         <span className="block text-sm font-medium">{title}</span>
         <span className="block font-bengali text-xs text-muted-foreground">{sub}</span>
+      </span>
+    </label>
+  );
+}
+
+/** Checkbox-style card; the pair behaves as a single choice (radio semantics for keyboard + screen readers). */
+function DeliveryOptionCard({ option, checked, onSelect, name }: { option: DeliveryOptionInfo; checked: boolean; onSelect: () => void; name: string }) {
+  return (
+    <label
+      className={cn(
+        "relative flex min-h-[72px] cursor-pointer select-none items-start gap-2.5 rounded-lg border bg-card p-3 transition-colors focus-within:ring-2 focus-within:ring-primary/30",
+        checked ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-input hover:border-primary/50",
+      )}
+    >
+      <input type="radio" name={name} value={option.code} checked={checked} onChange={onSelect} className="sr-only" />
+      <span
+        aria-hidden
+        className={cn("mt-0.5 flex size-5 shrink-0 items-center justify-center rounded border-2", checked ? "border-primary bg-primary text-primary-foreground" : "border-input bg-card")}
+      >
+        {checked && <Check className="size-3.5" strokeWidth={3} />}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-sm font-medium leading-tight">{option.label}</span>
+        <span className="block font-bengali text-xs text-muted-foreground">{option.labelBn}</span>
+        <span className="mt-1 block text-base font-semibold text-primary">{bdt(option.charge)}</span>
       </span>
     </label>
   );

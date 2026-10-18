@@ -17,6 +17,7 @@ import {
 import { NAV } from "./nav";
 import { GlobalSearch } from "./global-search";
 import { NotificationsMenu } from "./notifications-menu";
+import { useOrderStream } from "./use-order-stream";
 
 export function Logo({ className }: { className?: string }) {
   return (
@@ -80,6 +81,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
   const pathname = usePathname();
   const [mobileNav, setMobileNav] = useState(false);
+  useOrderStream(can("orders.view"));
   const health = useQuery({ queryKey: ["health"], queryFn: () => api<{ status: string }>("/health"), refetchInterval: 60_000, retry: false });
 
   // eslint-disable-next-line react-hooks/set-state-in-effect -- close the drawer on navigation

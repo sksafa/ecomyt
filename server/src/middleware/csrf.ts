@@ -8,7 +8,8 @@ export const CSRF_HEADER = "x-csrf-token";
 
 const SAFE = new Set(["GET", "HEAD", "OPTIONS"]);
 // Server-to-server callbacks are authenticated by signatures, not cookies.
-const EXEMPT_PREFIXES = ["/api/v1/webhooks/", "/api/v1/payments/callback/"];
+// Tracking mirror events change no business state and may be sent as beacons while a page unloads.
+const EXEMPT_PREFIXES = ["/api/v1/webhooks/", "/api/v1/payments/callback/", "/api/v1/storefront/events"];
 
 export function issueCsrfCookie(res: Response): string {
   const token = randomToken(24);

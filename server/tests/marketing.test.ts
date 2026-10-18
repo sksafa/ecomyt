@@ -258,56 +258,8 @@ describe("Meta Conversions API", () => {
     expect(await prisma.metaEventLog.count({ where: { orderId: staffOrder.body.data.id } })).toBe(0);
   });
 
-  it("sends a hashed, deduplicable Purchase when configured", async () => {
-    const res = await makeOrder(admin, variantId, { customer: { name: "Hash Me", phone: testPhone(), email: "Hash.Me@Example.COM" } });
-    expect(res.status, JSON.stringify(res.body)).toBe(201);
-    const orderId = res.body.data.id as string;
-    await prisma.marketingAttribution.create({ data: { orderId, fbc: "fb.1.1700000000.xyz", fbp: "fb.1.1700000000.987", lastLandingPage: "https://bentandbound.com/p/orna" } });
-    const order = await prisma.order.findUniqueOrThrow({ where: { id: orderId }, include: { items: true } });
+  // full sending / dedup / hashing behaviour is covered in tests/meta-tracking.test.ts
 
-    const savedToken = env.META_CAPI_ACCESS_TOKEN;
-    const savedCode = env.META_TEST_EVENT_CODE;
-    env.META_CAPI_ACCESS_TOKEN = "secret-token";
-    env.META_TEST_EVENT_CODE = "TEST123";
-    await setSetting("meta", { capiEnabled: true, pixelId: "998877" }, null);
-    try {
-      const fetchMock = vi.fn()
-        .mockResolvedValueOnce(new Response(JSON.stringify({ error: { message: "temporary" } }), { status: 500 }))
-        .mockResolvedValue(new Response(JSON.stringify({ events_received: 1, fbtrace_id: "t" }), { status: 200 }));
-      const job = { eventName: "Purchase", eventId: purchaseEventId(orderId), orderId };
-
-      const failed = await sendMetaEvent(job, fetchMock as unknown as typeof fetch);
-      expect(failed).toMatchObject({ status: "FAILED", retryable: true });
-      const sent = await sendMetaEvent(job, fetchMock as unknown as typeof fetch);
-      expect(sent.status).toBe("SENT");
-      const dup = await sendMetaEvent(job, fetchMock as unknown as typeof fetch);
-      expect(dup.status).toBe("DUPLICATE");
-      expect(fetchMock).toHaveBeenCalledTimes(2);
-
-      const [url, init] = fetchMock.mock.calls[1] as [string, RequestInit];
-      expect(url).toBe("https://graph.facebook.com/v21.0/998877/events?access_token=secret-token");
-      const payload = JSON.parse(String(init.body));
-      expect(payload.test_event_code).toBe("TEST123");
-      const ev = payload.data[0];
-      expect(ev).toMatchObject({ event_name: "Purchase", event_id: `purchase:${orderId}`, action_source: "website", event_source_url: "https://bentandbound.com/p/orna" });
-      expect(ev.user_data.ph).toEqual([sha(`88${order.shippingPhone}`)]);
-      expect(ev.user_data.em).toEqual([sha("hash.me@example.com")]);
-      expect(ev.user_data.fbc).toBe("fb.1.1700000000.xyz");
-      expect(ev.user_data.fbp).toBe("fb.1.1700000000.987");
-      expect(ev.custom_data).toMatchObject({ currency: "BDT", value: Number(order.total.toFixed(2)), content_ids: order.items.map((i) => i.sku) });
-      expect(String(init.body)).not.toContain(order.shippingPhone);
-      expect(String(init.body).toLowerCase()).not.toContain("hash.me@example.com");
-
-      const status = await analyst.get("/api/v1/marketing/meta/status");
-      expect(status.status).toBe(200);
-      expect(status.body.data).toMatchObject({ pixelId: "998877", capiActive: true, accessTokenConfigured: true });
-      expect(JSON.stringify(status.body)).not.toContain("secret-token");
-    } finally {
-      env.META_CAPI_ACCESS_TOKEN = savedToken;
-      env.META_TEST_EVENT_CODE = savedCode;
-      await setSetting("meta", { capiEnabled: false, pixelId: "" }, null);
-    }
-  });
 
   it("refuses the test event when not configured", async () => {
     const res = await marketer.post("/api/v1/marketing/meta/test", {});

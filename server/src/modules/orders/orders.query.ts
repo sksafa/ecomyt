@@ -101,6 +101,7 @@ export function serializeOrder(o: ListOrder, user: AuthUser) {
     customer: o.customer,
     shipping: {
       name: o.shippingName, phone: o.shippingPhone, address: o.shippingAddress, district: o.districtName, area: o.areaName, division: o.divisionName, note: o.deliveryNote,
+      deliveryOption: o.deliveryOption,
     },
     items: o.items.map((i) => ({
       id: i.id, productId: i.productId, variantId: i.variantId, productName: i.productName, variantName: i.variantName, sku: i.sku,

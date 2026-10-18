@@ -13,7 +13,7 @@ export interface OrderListItem {
   scheduledFor: string | null;
   isPreorder: boolean;
   customer: { id: string; name: string; phone: string; totalOrders: number; deliveredOrders: number; returnedOrders: number; cancelledOrders: number };
-  shipping: { name: string; phone: string; address: string; district: string | null; area: string | null; division: string | null; note: string | null };
+  shipping: { name: string; phone: string; address: string; district: string | null; area: string | null; division: string | null; note: string | null; deliveryOption?: "INSIDE_DHAKA" | "OUTSIDE_DHAKA" | null };
   items: {
     id: string; productId: string | null; variantId: string | null; productName: string; variantName: string | null; sku: string;
     color: string | null; size: string | null; imageUrl: string | null; quantity: number; unitPrice: Money; discount: Money; lineTotal: Money;
@@ -56,6 +56,11 @@ export interface OrderDetail extends OrderListItem {
     status: "ESTIMATED" | "RECONCILED"; basis: string;
   };
   financeStatus?: string;
+  metaTracking?: {
+    eventId: string;
+    browserClaimedAt: string | null;
+    server: { id: string; status: string; attempts: number; error: string | null; eventsReceived: number | null; fbtraceId: string | null; testEventCode: string | null; sentAt: string | null; updatedAt: string } | null;
+  };
   deliveryNote?: string | null;
 }
 

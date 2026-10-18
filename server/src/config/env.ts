@@ -24,6 +24,9 @@ const schema = z.object({
   META_PIXEL_ID: z.string().optional().default(""),
   META_CAPI_ACCESS_TOKEN: z.string().optional().default(""),
   META_TEST_EVENT_CODE: z.string().optional().default(""),
+  META_GRAPH_VERSION: z.string().regex(/^v\d+\.\d+$/).default("v21.0"),
+  // overridable only for local verification against a recording stub – production must use Meta's endpoint
+  META_GRAPH_BASE_URL: z.string().url().default("https://graph.facebook.com"),
   WHATSAPP_ACCESS_TOKEN: z.string().optional().default(""),
   WHATSAPP_PHONE_NUMBER_ID: z.string().optional().default(""),
   SSLCOMMERZ_STORE_ID: z.string().optional().default(""),

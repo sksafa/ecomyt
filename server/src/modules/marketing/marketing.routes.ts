@@ -9,7 +9,7 @@ import { dateOnly } from "../../lib/time.js";
 import type { AdPlatform } from "../../generated/prisma/enums.js";
 import { AD_PLATFORMS, importAdSpendCsv, upsertAdSpend } from "./ad-spend.js";
 import { attributionReport, campaignReport, reconciliationReport, resolveRange } from "./marketing.service.js";
-import { getMetaConfig, META_GRAPH_VERSION, sendMetaEvent } from "./meta-capi.js";
+import { getMetaConfig, META_GRAPH_VERSION, retryMetaEvent, sendMetaEvent } from "./meta-capi.js";
 import { randomToken } from "../../lib/crypto.js";
 
 export const marketingModule = createModule("/marketing", "Marketing");
@@ -234,5 +234,18 @@ route({
     });
     await audit(prisma, { userId: user.id, action: "marketing.meta_test_event", entityType: "MetaEventLog", entityId: result.logId ?? null, after: { status: result.status, eventId }, ip });
     return { eventId, ...result };
+  },
+});
+
+route({
+  method: "post",
+  path: "/meta/events/:id/retry",
+  summary: "Send a failed / skipped Purchase event to Meta again (same event_id, so Meta still deduplicates)",
+  access: "marketing.manage",
+  params: idParam,
+  handler: async ({ params, user, ip }) => {
+    const r = await retryMetaEvent(params.id);
+    await audit(prisma, { userId: user.id, action: "marketing.meta_event_retry", entityType: "MetaEventLog", entityId: params.id, after: { status: r.status }, ip });
+    return r;
   },
 });

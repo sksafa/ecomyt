@@ -6,6 +6,7 @@ export const SCHEDULES: { id: string; queue: QueueName; name: string; repeat: { 
   { id: "daily-summary", queue: QUEUES.scheduled, name: "daily-summary", repeat: { pattern: "0 21 * * *", tz: BUSINESS_TZ } },
   { id: "low-stock-scan", queue: QUEUES.scheduled, name: "low-stock-scan", repeat: { pattern: "0 9 * * *", tz: BUSINESS_TZ } },
   { id: "cod-settlement-reminder", queue: QUEUES.scheduled, name: "cod-settlement-reminder", repeat: { pattern: "0 10 * * *", tz: BUSINESS_TZ } },
+  { id: "meta-log-prune", queue: QUEUES.scheduled, name: "meta-log-prune", repeat: { pattern: "30 3 * * *", tz: BUSINESS_TZ } },
   { id: "courier-sync", queue: QUEUES.courier, name: "sync-active", repeat: { every: 30 * 60 * 1000 } },
 ];
 

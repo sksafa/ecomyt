@@ -5,9 +5,12 @@ import { badRequest, conflict, notFound } from "../../lib/errors.js";
 import { max0, money } from "../../lib/money.js";
 import { normalizeBdPhone } from "../../lib/phone.js";
 import { getSetting } from "../../lib/settings.js";
-import { storefrontLimiter } from "../../middleware/rateLimit.js";
+import { storefrontLimiter, trackingLimiter } from "../../middleware/rateLimit.js";
+import { env } from "../../config/env.js";
+import { buildMirroredEvent, claimBrowserPurchase, getMetaConfig, purchaseEligibility, queueMetaEvent } from "../marketing/meta-capi.js";
 import { createOrder, type Actor } from "../orders/orders.service.js";
 import { STATUS_LABELS } from "../orders/order-status.js";
+import { DELIVERY_OPTIONS, deliveryOptionLabel, getDeliveryOptions } from "../shipping/delivery-options.js";
 import { sanitizeSections, type Section } from "../cms/sections.js";
 import {
   publicProductInclude,
@@ -57,6 +60,23 @@ async function storeInfo() {
 
 // ───────────── home ─────────────
 
+/**
+ * Product sold on the homepage landing page: the one chosen in Content settings if it is on sale publicly,
+ * otherwise the newest featured product that has stock, otherwise any public in-stock product.
+ */
+async function landingProductSlug(configured: string) {
+  if (configured) {
+    const p = await prisma.product.findFirst({ where: { AND: [publicProductWhere, { slug: configured }] }, select: { slug: true } });
+    if (p) return p.slug;
+  }
+  const inStock: Prisma.ProductWhereInput = { variants: { some: { isActive: true, inventory: { is: { available: { gt: 0 } } } } } };
+  for (const where of [{ isFeatured: true, ...inStock }, inStock, {}] as Prisma.ProductWhereInput[]) {
+    const p = await prisma.product.findFirst({ where: { AND: [publicProductWhere, where] }, orderBy: { updatedAt: "desc" }, select: { slug: true } });
+    if (p) return p.slug;
+  }
+  return null;
+}
+
 route({
   method: "get",
   path: "/home",
@@ -81,6 +101,7 @@ route({
       publicTestimonials(12),
     ]);
     return {
+      landing: { productSlug: await landingProductSlug(info.cms.homepage.landingProductSlug) },
       banners,
       featuredCollections: featuredCollections.filter((c) => c !== null),
       featuredProducts,
@@ -289,6 +310,14 @@ route({
 
 // ───────────── checkout ─────────────
 
+route({
+  method: "get",
+  path: "/delivery-options",
+  summary: "Delivery options offered at checkout with their current charges (configured in Settings → Delivery charges)",
+  access: "public",
+  handler: () => getDeliveryOptions(),
+});
+
 const attrText = z.string().trim().max(500).optional();
 const attributionSchema = z
   .object({
@@ -321,9 +350,12 @@ route({
       note: z.string().trim().max(500).nullish(),
     }),
     items: z.array(z.object({ variantId: z.string().min(1).max(60), quantity: z.number().int().min(1).max(10) })).min(1).max(20),
+    deliveryOption: z.enum(DELIVERY_OPTIONS, { error: "Choose Inside Dhaka or Outside Dhaka" }),
     paymentMethod: z.enum(["COD", "SSLCOMMERZ"]).default("COD"),
     attribution: attributionSchema,
     clientEventId: z.string().max(100).optional(),
+    /** page the order was placed on (Meta event_source_url); must be on this store's own origin */
+    eventSourceUrl: z.string().max(1000).optional(),
     website: z.string().max(500).optional(),
   }),
   handler: async ({ body, req, ip }) => {
@@ -341,10 +373,17 @@ route({
         shipping: { addressLine: body.shipping.addressLine, districtId: body.shipping.districtId ?? null, areaId: body.shipping.areaId ?? null, note: body.shipping.note ?? null },
         // only variant + quantity reach the order service: client prices/discounts/delivery are never accepted
         items: body.items.map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
+        // the charge for this option is looked up from the database by the order service
+        deliveryOption: body.deliveryOption,
         paymentMethod: body.paymentMethod,
         channel: "WEBSITE",
         // IP + user agent are captured server-side for Meta CAPI event matching (never taken from the body)
-        attribution: { ...(body.attribution ?? {}), clientIpAddress: ip || undefined, clientUserAgent: req.header("user-agent")?.slice(0, 500) },
+        attribution: {
+          ...(body.attribution ?? {}),
+          clientIpAddress: ip || undefined,
+          clientUserAgent: req.header("user-agent")?.slice(0, 500),
+          eventSourceUrl: ownStoreUrl(body.eventSourceUrl) ?? ownStoreUrl(req.header("referer")) ?? undefined,
+        },
         idempotencyKey: `store:${key}`,
         requirePublished: true,
       },
@@ -353,17 +392,103 @@ route({
     // a reused key from a different customer must not reveal someone else's order
     if (duplicate && order.shippingPhone !== phone) throw conflict("Idempotency-Key was already used for a different order");
 
+    // The browser Purchase payload is handed out once, on the response that created the order (replays → null).
+    // Online-payment orders get it after the payment is verified (POST /orders/:orderNumber/purchase-event).
+    const metaPurchase = duplicate ? null : await claimBrowserPurchase(order.id);
+
     return {
       orderNumber: order.orderNumber,
       status: order.status,
       subtotal: money(order.subtotal).toFixed(2),
       deliveryCharge: money(order.deliveryCharge).toFixed(2),
+      deliveryOption: order.deliveryOption,
+      deliveryOptionLabel: deliveryOptionLabel(order.deliveryOption),
       total: money(order.total).toFixed(2),
       paymentMethod: order.paymentMethod,
       paymentRequired: order.paymentMethod === "SSLCOMMERZ",
-      metaEventId: `purchase:${order.id}`,
+      metaEventId: order.metaPurchaseEventId ?? `purchase:${order.id}`,
+      /** fire the Pixel Purchase only when this is non-null (same eventID as the server event) */
+      metaPurchase,
       duplicate,
     };
+  },
+});
+
+/** Accept a URL only if it points at this storefront (CLIENT_URL origins); anything else is dropped. */
+function ownStoreUrl(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  try {
+    const u = new URL(raw);
+    const origins = env.CLIENT_URL.split(",").map((o) => new URL(o.trim()).origin);
+    if (!origins.includes(u.origin)) return null;
+    u.hash = "";
+    return u.toString().slice(0, 1000);
+  } catch {
+    return null;
+  }
+}
+
+route({
+  method: "post",
+  path: "/orders/:orderNumber/purchase-event",
+  summary: "One-time Meta Pixel Purchase payload for an order whose online payment was verified",
+  description:
+    "Returns `purchase` (eventId + parameters, identical to the server Conversions API event) the first time it is called for an eligible order; " +
+    "every later call – refresh, revisit, another device – returns `purchase: null`. Requires the order's phone number.",
+  access: "public",
+  middleware: [storefrontLimiter],
+  params: z.object({ orderNumber: z.string().trim().min(3).max(30) }),
+  body: z.object({ phone: z.string().trim().min(1).max(30) }),
+  handler: async ({ params, body }) => {
+    const phone = normalizeBdPhone(body.phone);
+    const order = await prisma.order.findUnique({ where: { orderNumber: params.orderNumber.toUpperCase() } });
+    if (!order || !phone || order.shippingPhone !== phone) throw notFound("Order");
+    const elig = purchaseEligibility(order);
+    if (!elig.eligible) return { purchase: null, reason: elig.reason };
+    return { purchase: await claimBrowserPurchase(order.id), reason: order.pixelPurchaseClaimedAt ? "Already tracked" : null };
+  },
+});
+
+route({
+  method: "post",
+  path: "/events",
+  summary: "Server-side copy of a browser Pixel event (ViewContent, InitiateCheckout, AddToCart) for Meta's Conversions API",
+  description:
+    "The browser sends the same eventID it gave the Pixel so Meta deduplicates the pair. Prices and SKUs are read from the catalogue, " +
+    "never trusted from the client. No personal data is accepted. Does nothing when the Conversions API is not configured.",
+  access: "public",
+  status: 202,
+  middleware: [trackingLimiter],
+  body: z.object({
+    eventName: z.enum(["ViewContent", "InitiateCheckout", "AddToCart"]),
+    eventId: z.string().regex(/^[A-Za-z0-9_.:-]{8,100}$/),
+    eventSourceUrl: z.string().max(1000),
+    items: z.array(z.object({ variantId: z.string().min(1).max(60), quantity: z.number().int().min(1).max(10) })).min(1).max(20),
+    fbp: z.string().max(200).nullish(),
+    fbc: z.string().max(300).nullish(),
+  }),
+  handler: async ({ body, req, ip }) => {
+    const cfg = await getMetaConfig();
+    if (!cfg.active) return { accepted: false, reason: "Conversions API not configured" };
+    const url = ownStoreUrl(body.eventSourceUrl);
+    if (!url) return { accepted: false, reason: "eventSourceUrl must be a page of this store" };
+    const variants = await prisma.productVariant.findMany({
+      where: { id: { in: body.items.map((i) => i.variantId) }, isActive: true, product: { isPublished: true, status: "ACTIVE" } },
+      include: { product: { select: { salePrice: true, regularPrice: true } } },
+    });
+    const items = body.items
+      .map((i) => {
+        const v = variants.find((x) => x.id === i.variantId);
+        return v ? { sku: v.sku, quantity: i.quantity, price: money(v.price ?? v.product.salePrice ?? v.product.regularPrice).toFixed(2) } : null;
+      })
+      .filter((x): x is { sku: string; quantity: number; price: string } => !!x);
+    if (!items.length) return { accepted: false, reason: "No published products in the event" };
+    const event = buildMirroredEvent({
+      eventName: body.eventName, eventId: body.eventId, eventSourceUrl: url, items,
+      fbp: body.fbp ?? req.cookies?._fbp ?? null, fbc: body.fbc ?? req.cookies?._fbc ?? null, ip, userAgent: req.header("user-agent")?.slice(0, 500) ?? null,
+    });
+    await queueMetaEvent({ eventName: body.eventName, eventId: body.eventId, event });
+    return { accepted: true };
   },
 });
 
@@ -412,6 +537,8 @@ route({
         subtotal: money(order.subtotal).toFixed(2),
         discount: money(order.discountTotal).toFixed(2),
         deliveryCharge: money(order.deliveryCharge).toFixed(2),
+        deliveryOption: order.deliveryOption,
+        deliveryOptionLabel: deliveryOptionLabel(order.deliveryOption),
         total: money(order.total).toFixed(2),
         paid: money(order.paidAmount).toFixed(2),
         due: max0(money(order.total).minus(order.paidAmount)).toFixed(2),

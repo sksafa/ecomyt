@@ -37,9 +37,20 @@ export const SETTING_DEFAULTS = {
     /** Estimated RTO charge as a share of the delivery fee when the courier has not reported one. */
     estimatedReturnFeeRatio: "0.5",
   },
+  /** Flat delivery charges offered at website checkout. The server always prices orders from these values. */
+  checkout: {
+    insideDhakaCharge: "70.00",
+    outsideDhakaCharge: "120.00",
+  },
   meta: {
     pixelId: "",
     capiEnabled: false,
+    /**
+     * Purchase value sent to Meta (browser and server use the same rule):
+     *  ORDER_TOTAL   = products − discount + delivery charge (what the customer pays)
+     *  PRODUCT_VALUE = products − discount (delivery excluded)
+     */
+    purchaseValue: "ORDER_TOTAL" as "ORDER_TOTAL" | "PRODUCT_VALUE",
   },
   statusLabels: {} as Record<string, { en?: string; bn?: string; color?: string }>,
   notifications: {
@@ -54,7 +65,11 @@ export const SETTING_DEFAULTS = {
   cms: {
     announcementBar: { enabled: false, text: "", textBn: "", link: "" },
     footer: { about: "", facebookUrl: "", instagramUrl: "", whatsapp: "" },
-    homepage: { featuredCollectionSlugs: [] as string[] },
+    homepage: {
+      featuredCollectionSlugs: [] as string[],
+      /** Product sold on the homepage landing page ("/"). Empty = newest featured in-stock product. */
+      landingProductSlug: "",
+    },
   },
 };
 
@@ -65,6 +80,7 @@ const SETTING_GROUP: Record<SettingKey, string> = {
   store: "general",
   inventory: "operations",
   orders: "operations",
+  checkout: "operations",
   finance: "finance",
   meta: "marketing",
   statusLabels: "operations",

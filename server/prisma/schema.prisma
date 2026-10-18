@@ -697,6 +697,12 @@ enum SalesChannel {
   OTHER
 }
 
+/// Delivery option chosen at website checkout (flat charges configured in Settings → Delivery charges)
+enum DeliveryOption {
+  INSIDE_DHAKA
+  OUTSIDE_DHAKA
+}
+
 enum FinanceStatus {
   ESTIMATED
   RECONCILED
@@ -722,6 +728,11 @@ model Order {
   areaName        String?
   zoneId          String?
   deliveryNote    String?
+  deliveryOption  DeliveryOption? // set for website orders; the charge applied is deliveryCharge
+  /// Meta Purchase event_id shared by the browser Pixel and the Conversions API (one per order)
+  metaPurchaseEventId String?   @unique
+  /// set once when the browser is given the Purchase payload – it is never handed out twice
+  pixelPurchaseClaimedAt DateTime?
 
   subtotal        Decimal       @db.Decimal(12, 2)
   discountTotal   Decimal       @default(0) @db.Decimal(12, 2)
@@ -1318,6 +1329,8 @@ model MarketingAttribution {
   // needed by Meta CAPI for website events; erased with the customer
   clientIpAddress  String?
   clientUserAgent  String?
+  /// page on which the order was placed (Meta event_source_url)
+  eventSourceUrl   String?
   createdAt        DateTime @default(now())
   order            Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
@@ -1359,12 +1372,23 @@ model MetaEventLog {
   eventName String
   eventId   String
   orderId   String?
+  /// PENDING → SENT (Meta confirmed events_received) | FAILED (rejected / network) | SKIPPED (not configured)
   status    String
+  attempts  Int      @default(0)
+  /// what was sent (custom_data + which match keys were present – hashes only, never raw PII)
+  payload   Json?
   response  Json?
   error     String?
+  eventsReceived Int?
+  fbtraceId String?
+  testEventCode String?
+  sentAt    DateTime?
   createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   @@unique([eventName, eventId])
+  @@index([orderId])
+  @@index([status, createdAt])
 }
 
 // ───────────────────────────── Notifications ─────────────────────────────

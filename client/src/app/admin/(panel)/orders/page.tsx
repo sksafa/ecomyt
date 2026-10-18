@@ -63,6 +63,9 @@ function OrdersScreen() {
     queryKey: ["orders", query],
     queryFn: () => request<OrderListItem[]>("/orders", { query }),
     placeholderData: keepPreviousData,
+    // live updates come from useOrderStream; these are a safety net if the stream is unavailable
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
   });
   const orders = list.data?.data ?? [];
   const counts = (list.data?.meta?.statusCounts ?? {}) as Record<string, number>;

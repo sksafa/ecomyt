@@ -49,6 +49,9 @@ Repeat buyers and shared addresses are never penalised by themselves; nobody is 
 
 ## Delivery charge
 
+**Website checkout** offers two flat options: *Inside Dhaka* and *Outside Dhaka* (pre-selected). The charges are set in **Settings → Delivery charges** (stored in the database, defaults ৳70 / ৳120). Checkout sends only the chosen option; the server looks up the charge, stores the option and charge on the order, and calculates **total = products + delivery charge**. Changing the charges affects new orders only.
+
+**Staff-created orders** use the zone rates below:
 Zone of the area (if set) else zone of the district else *Outside Dhaka*. Charge = base charge (covers the base weight, default 1 kg) + per-kg charge for each started extra kg; free above the zone's threshold or when all items are free-shipping. Rates are edited in Shipping → Delivery zones. Staff need `orders.override_delivery` to change the charge on an order.
 
 ## Returns, refunds, exchanges
@@ -62,3 +65,10 @@ A refund is never paid automatically; cancelled prepaid orders get a *pending* r
 - COD: the courier collects; on delivery a `COD_COLLECTION` payment is recorded (money held by the courier) and becomes cash with the courier settlement.
 - Advance (bKash/Nagad/bank/cash): recorded with the transaction id (unique per method – duplicates are rejected), verified by someone with `payments.record`; only then does the due amount drop.
 - Online (SSLCommerz): the server creates the transaction, the browser is redirected, and the payment is completed only after the gateway's validation API confirms amount and currency (IPN and redirect are both idempotent).
+
+## Homepage
+
+- `/` is a sales landing page for one product, using the brand's landing-page look (Anek Bangla text, Georgia / Noto Serif Bengali headings, maroon and gold). The previous catalogue homepage is at `/home2`. If no product can be sold (empty catalogue, API down) `/` shows the catalogue homepage instead.
+- The product is chosen in **Content → Settings → Homepage product**. "Automatic" picks the most recently updated featured product that has stock. An unpublished or archived choice is never shown; the automatic pick is used until it is published again. Changes appear within about a minute because the storefront caches the home data for 60 seconds.
+- Name, photos, price / compare-at price, colours, sizes, fabric, embroidery, design, description and care text come from the product. Brand copy (why buy, check before you pay, photo match, return policy) is fixed text in `client/src/components/store/home-landing/home-landing.tsx`. Reviews appear only when real testimonials exist (Content → Testimonials).
+- Every "অর্ডার করুন" button scrolls to the order form on the same page. The form is the standard checkout (name, mobile, address, Inside / Outside Dhaka). Delivery charges and the total come from the server. Meta events are the same as on product pages: ViewContent on load, InitiateCheckout when the form is first used, Purchase after the order.

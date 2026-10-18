@@ -147,3 +147,13 @@ export async function courierSyncJob(opts: { limit?: number } = {}) {
   }
   return { providers: pollable.map((p) => p.code), checked, failed };
 }
+
+/**
+ * Browser-mirrored Meta events (ViewContent / InitiateCheckout / AddToCart) are only kept for 30 days.
+ * Purchase rows are kept permanently – they are the audit trail of conversion tracking.
+ */
+export async function pruneMetaEventLogsJob(opts: { days?: number } = {}) {
+  const before = new Date(Date.now() - (opts.days ?? 30) * 86_400_000);
+  const r = await prisma.metaEventLog.deleteMany({ where: { eventName: { not: "Purchase" }, createdAt: { lt: before } } });
+  return { deleted: r.count };
+}

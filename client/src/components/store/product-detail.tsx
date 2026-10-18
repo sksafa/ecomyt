@@ -8,7 +8,7 @@ import { bdt } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { cart, MAX_QTY } from "./cart";
 import { QtyStepper } from "./cart-drawer";
-import { contentData, track } from "./tracking";
+import { trackWithServer } from "./tracking";
 import type { PublicProductDetail, PublicVariant } from "./types";
 import { Img, Price } from "./ui";
 
@@ -178,9 +178,13 @@ export function ProductDetail({ product }: { product: PublicProductDetail }) {
   const { variant } = picker;
   const [qty, setQty] = useState(1);
 
+  // ViewContent once per product view (the ref also absorbs React StrictMode's double effect in development)
+  const viewed = useRef<string | null>(null);
   useEffect(() => {
-    const v = product.variants[0];
-    track("ViewContent", { ...contentData(v ? [{ sku: v.sku, quantity: 1, price: product.price }] : []), content_name: product.name });
+    if (viewed.current === product.id) return;
+    viewed.current = product.id;
+    const v = product.variants.find((x) => x.inStock) ?? product.variants[0];
+    if (v) trackWithServer("ViewContent", [{ sku: v.sku, quantity: 1, price: v.price ?? product.price, variantId: v.id }], { content_name: product.name });
   }, [product]);
 
   const canBuy = !!variant?.inStock;

@@ -11,26 +11,35 @@ import { captureAttribution, track } from "./tracking";
  */
 export function StoreTracking({ pixelId }: { pixelId: string | null }) {
   const pathname = usePathname();
-  const first = useRef(true);
+  const lastPath = useRef<string | null>(null);
+  const enabled = !!pixelId && /^\d{5,20}$/.test(pixelId);
 
   useEffect(() => {
     captureAttribution();
   }, []);
 
+  // The snippet sends the landing PageView; client-side navigations send one each. Comparing with the last
+  // tracked path (instead of a "first run" flag) also keeps React StrictMode's double effects from duplicating it.
   useEffect(() => {
-    if (first.current) {
-      first.current = false; // the snippet itself sends the landing PageView
+    if (lastPath.current === null) {
+      lastPath.current = pathname;
       return;
     }
-    if (pixelId) track("PageView");
-  }, [pathname, pixelId]);
+    if (lastPath.current === pathname) return;
+    lastPath.current = pathname;
+    track("PageView");
+  }, [pathname]);
 
-  if (!pixelId || !/^\d{5,20}$/.test(pixelId)) return null;
+  if (!enabled) return null;
   return (
-    <Script id="bb-meta-pixel" strategy="afterInteractive">
+    <>
+      {/* runs while the HTML is parsed – before any component effect fires an event */}
+      <script dangerouslySetInnerHTML={{ __html: "window.__bbPixelOn=true;" }} />
+      <Script id="bb-meta-pixel" strategy="afterInteractive">
       {`!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
 fbq('init','${pixelId}');fbq('track','PageView');
 (window.__bbPixelQ||[]).forEach(function(a){fbq.apply(null,a)});window.__bbPixelQ=[];`}
-    </Script>
+      </Script>
+    </>
   );
 }

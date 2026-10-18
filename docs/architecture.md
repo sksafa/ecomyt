@@ -25,7 +25,7 @@
 |---|---|
 | `client/` | Next.js 16 App Router, React 19, TypeScript, Tailwind 4, shadcn/ui, TanStack Query, React Hook Form + Zod, Recharts |
 | `client/src/app/admin/(panel)` | Admin console pages (orders, customers, catalog, inventory, purchasing, shipping, returns, finance, marketing, reports, content, staff, audit, settings) |
-| `client/src/app/(store)` | Public storefront (home, shop, product, cart, checkout, order status, CMS pages) |
+| `client/src/app/(store)` | Public storefront: `/` = sales landing page for one product (`components/store/home-landing/`), `/home2` = catalogue home (banners, collections), shop, product, cart, checkout, order status, CMS pages |
 | `server/` | Express 5 + TypeScript API, Prisma 7, BullMQ worker |
 | `server/src/modules/<module>` | One folder per business module: `*.routes.ts` (HTTP + validation + permissions), `*.service.ts` (business rules) |
 | `server/src/http/route.ts` | `createModule().route({...})`: every endpoint declares access (permission), Zod schemas and idempotency in one place; the same definition drives validation, permission enforcement and the OpenAPI document |

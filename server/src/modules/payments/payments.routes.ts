@@ -12,6 +12,7 @@ import type { AuthUser } from "../../middleware/auth.js";
 import { systemActor, type Actor } from "../orders/orders.service.js";
 import * as payments from "./payments.service.js";
 import { gatewayStatus, getGateway, sandboxSignature } from "./gateways.js";
+import { queuePurchaseEvent } from "../marketing/meta-capi.js";
 
 export const paymentsModule = createModule("/payments", "Payments & refunds");
 export const refundsModule = createModule("/refunds", "Payments & refunds");
@@ -72,7 +73,11 @@ route({
   access: "payments.record",
   params: idParam,
   body: z.object({ accountId: z.string().nullish() }),
-  handler: ({ params, body, user, ip }) => payments.verifyPayment(params.id, body.accountId ?? null, actorOf(user, ip)),
+  handler: async ({ params, body, user, ip }) => {
+    const p = await payments.verifyPayment(params.id, body.accountId ?? null, actorOf(user, ip));
+    await queuePurchaseEvent(p.orderId).catch((err) => logger.error({ err }, "meta purchase queue failed"));
+    return p;
+  },
 });
 
 route({
@@ -160,6 +165,8 @@ async function completeFromCallback(gatewayCode: string, payload: Record<string,
   await prisma.payment.update({ where: { id: payment.id }, data: { rawPayload: v.raw as Prisma.InputJsonValue, note: v.gatewayRef ? `Gateway ref ${v.gatewayRef}` : null } });
   const account = await prisma.account.findFirst({ where: { type: "BANK", isActive: true }, orderBy: { createdAt: "asc" } });
   await payments.verifyPayment(payment.id, account?.id ?? null, systemActor("SYSTEM"));
+  // a verified online payment is the Purchase for online-paid website orders (server side; the browser claims it on return)
+  await queuePurchaseEvent(payment.orderId).catch((err) => logger.error({ err }, "meta purchase queue failed"));
   return { ok: true, orderNumber: payment.order.orderNumber };
 }
 

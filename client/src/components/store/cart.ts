@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { track, contentData } from "./tracking";
+import { trackWithServer } from "./tracking";
 
 /** Display snapshot only – the server reprices every line at checkout. */
 export interface CartLine {
@@ -78,7 +78,7 @@ export const cart = {
       ? lines.map((l) => (l.variantId === line.variantId ? { ...l, ...line, quantity: Math.min(MAX_QTY, l.quantity + quantity) } : l))
       : [...lines, { ...line, quantity: Math.min(MAX_QTY, quantity) }];
     save(next);
-    track("AddToCart", contentData([{ sku: line.sku, quantity, price: line.price }]));
+    trackWithServer("AddToCart", [{ sku: line.sku, quantity, price: line.price, variantId: line.variantId }]);
     if (opts.openDrawer) cart.setDrawer(true);
     return true;
   },

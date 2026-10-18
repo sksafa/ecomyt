@@ -223,7 +223,7 @@ export function OrderRow({ order: o, selected, onSelect, actions }: { order: Ord
         <div className="grid gap-4 border-t bg-slate-50/60 px-4 py-3 text-sm md:grid-cols-3 lg:pl-[150px]">
           <div>
             <p className="font-medium">Amounts</p>
-            <p>Subtotal {bdt(o.amounts.subtotal)} · Discount {bdt(o.amounts.discount)} · Delivery {bdt(o.amounts.deliveryCharge)}</p>
+            <p>Subtotal {bdt(o.amounts.subtotal)} · Discount {bdt(o.amounts.discount)} · Delivery {bdt(o.amounts.deliveryCharge)}{o.shipping.deliveryOption ? ` (${o.shipping.deliveryOption === "INSIDE_DHAKA" ? "Inside Dhaka" : "Outside Dhaka"})` : ""}</p>
             {o.amounts.refunded !== "0.00" && Number(o.amounts.refunded) > 0 && <p className="text-rose-700">Refunded {bdt(o.amounts.refunded)}</p>}
           </div>
           <div>

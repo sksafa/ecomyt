@@ -21,6 +21,7 @@ interface Settings {
   store: { name: string; tagline: string; phone: string; email: string; address: string; logoUrl: string; currency: string; timezone: string };
   inventory: { reserveOn: "ORDER_CREATED" | "CONFIRMED"; deductOn: "COURIER_BOOKED" | "SHIPPED"; allowBackorder: boolean };
   orders: { confirmationRiskThreshold: number; duplicateWindowHours: number; defaultPackagingCost: string };
+  checkout: { insideDhakaCharge: string; outsideDhakaCharge: string };
   finance: { codChargePercent: string; estimatedCourierFee: Record<string, string>; estimatedReturnFeeRatio: string };
   meta: { pixelId: string; capiEnabled: boolean };
   statusLabels: Record<string, { en?: string; bn?: string; color?: string }>;
@@ -141,6 +142,41 @@ function OrdersForm({ v, canEdit }: { v: Settings["orders"]; canEdit: boolean })
         </Field>
       </div>
       <SaveBar canEdit={canEdit} saving={saving} disabled={!valid} onSave={() => save({ confirmationRiskThreshold: Number(f.confirmationRiskThreshold), duplicateWindowHours: Number(f.duplicateWindowHours), defaultPackagingCost: f.defaultPackagingCost })} />
+    </Section>
+  );
+}
+
+/** Flat delivery charges offered at website checkout. Saved in the database; checkout and the server read them live. */
+function DeliveryChargesForm({ v, canEdit }: { v: Settings["checkout"]; canEdit: boolean }) {
+  const [f, setF] = useState({ insideDhakaCharge: String(v.insideDhakaCharge), outsideDhakaCharge: String(v.outsideDhakaCharge) });
+  const { save, saving, errors } = useSaveGroup("checkout");
+  const check = (x: string) => (!/^\d+(\.\d{1,2})?$/.test(x.trim()) ? "Enter an amount in taka, e.g. 70 or 70.50" : Number(x) > 10_000 ? "At most ৳10,000" : undefined);
+  const insideErr = errors.insideDhakaCharge ?? check(f.insideDhakaCharge);
+  const outsideErr = errors.outsideDhakaCharge ?? check(f.outsideDhakaCharge);
+  const changed = Number(f.insideDhakaCharge) !== Number(v.insideDhakaCharge) || Number(f.outsideDhakaCharge) !== Number(v.outsideDhakaCharge);
+  return (
+    <Section title="Website delivery charges">
+      <div className="space-y-4">
+        <Explain>
+          Customers choose <strong>Inside Dhaka</strong> or <strong>Outside Dhaka</strong> at checkout (Outside Dhaka is pre-selected). The order total is
+          product price + the charge saved here. The server always applies these saved values, so a change takes effect for the next order immediately.
+          Orders already placed keep the charge they were placed with.
+        </Explain>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Inside Dhaka (৳)" htmlFor="d-inside" error={insideErr} hint="ঢাকার ভিতরে">
+            <Input id="d-inside" inputMode="decimal" disabled={!canEdit} value={f.insideDhakaCharge} onChange={(e) => setF({ ...f, insideDhakaCharge: e.target.value })} />
+          </Field>
+          <Field label="Outside Dhaka (৳)" htmlFor="d-outside" error={outsideErr} hint="ঢাকার বাইরে · default option at checkout">
+            <Input id="d-outside" inputMode="decimal" disabled={!canEdit} value={f.outsideDhakaCharge} onChange={(e) => setF({ ...f, outsideDhakaCharge: e.target.value })} />
+          </Field>
+        </div>
+      </div>
+      <SaveBar
+        canEdit={canEdit}
+        saving={saving}
+        disabled={!changed || !!check(f.insideDhakaCharge) || !!check(f.outsideDhakaCharge)}
+        onSave={() => save({ insideDhakaCharge: f.insideDhakaCharge.trim(), outsideDhakaCharge: f.outsideDhakaCharge.trim() })}
+      />
     </Section>
   );
 }
@@ -267,6 +303,7 @@ const TABS = [
   { key: "store", label: "Store info" },
   { key: "inventory", label: "Inventory" },
   { key: "orders", label: "Orders" },
+  { key: "checkout", label: "Delivery charges" },
   { key: "finance", label: "Finance" },
   { key: "notifications", label: "Notifications" },
   { key: "meta", label: "Meta pixel" },
@@ -312,6 +349,7 @@ function SettingsScreen() {
           {tab.key === "store" && d && <StoreForm key={k} v={d.store} canEdit={canEdit} />}
           {tab.key === "inventory" && d && <InventoryForm key={k} v={d.inventory} canEdit={canEdit} />}
           {tab.key === "orders" && d && <OrdersForm key={k} v={d.orders} canEdit={canEdit} />}
+          {tab.key === "checkout" && d && <DeliveryChargesForm key={k} v={d.checkout} canEdit={canEdit} />}
           {tab.key === "finance" && d && <FinanceForm key={k} v={d.finance} canEdit={canEdit} />}
           {tab.key === "meta" && d && <MetaForm key={k} v={d.meta} canEdit={canEdit} />}
           {tab.key === "statusLabels" && d && <StatusLabelsForm key={k} v={d.statusLabels} canEdit={canEdit} />}

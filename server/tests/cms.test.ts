@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { api, staff, unique, type Client } from "./helpers.js";
+import { makeProduct } from "./fixtures.js";
 import { prisma } from "../src/lib/prisma.js";
 import { sanitizeHtml } from "../src/modules/cms/sections.js";
 import { clearSettingsCache } from "../src/lib/settings.js";
@@ -175,5 +176,32 @@ describe("content settings", () => {
     expect(home.body.data.announcementBar.textBn).toBe("৳৩০০০+ অর্ডারে ফ্রি ডেলিভারি");
     expect(home.body.data.store.email).toBe("hello@bentbound.test");
     expect(await prisma.auditLog.count({ where: { action: "settings.updated", entityId: { in: ["cms", "store"] }, userId: marketer.user.id } })).toBe(2);
+  });
+
+  it("chooses the product sold on the homepage landing page", async () => {
+    const admin = await staff(["admin"]);
+    await makeProduct(admin, { stock: [2] }); // something to fall back to
+    const chosen = await makeProduct(admin, { stock: [3] });
+    const chosenSlug = (await prisma.product.findUniqueOrThrow({ where: { id: chosen.id } })).slug;
+    const landingSlug = async () => (await api.get("/api/v1/storefront/home")).body.data.landing.productSlug as string | null;
+
+    // automatic: a public product
+    await marketer.put("/api/v1/cms/settings", { homepage: { landingProductSlug: "" } });
+    const auto = await landingSlug();
+    expect(auto).toBeTruthy();
+    expect((await api.get(`/api/v1/storefront/products/${auto}`)).status).toBe(200);
+
+    const set = await marketer.put("/api/v1/cms/settings", { homepage: { landingProductSlug: chosenSlug } });
+    expect(set.status).toBe(200);
+    expect(set.body.data.homepage.landingProductSlug).toBe(chosenSlug);
+    expect(await landingSlug()).toBe(chosenSlug);
+
+    // an unpublished choice is never served – the homepage falls back to the automatic pick
+    await prisma.product.update({ where: { id: chosen.id }, data: { isPublished: false } });
+    expect(await landingSlug()).not.toBe(chosenSlug);
+    expect(await landingSlug()).toBeTruthy();
+
+    expect((await marketer.put("/api/v1/cms/settings", { homepage: { landingProductSlug: "Bad slug!" } })).status).toBe(422);
+    expect((await agent.put("/api/v1/cms/settings", { homepage: { landingProductSlug: chosenSlug } })).status).toBe(403);
   });
 });

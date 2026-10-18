@@ -32,7 +32,7 @@ describe("settings", () => {
     expect((await analyst.get("/api/v1/settings")).status).toBe(403);
     const res = await admin.get("/api/v1/settings");
     expect(res.status).toBe(200);
-    expect(Object.keys(res.body.data).sort()).toEqual(["cms", "finance", "inventory", "meta", "notifications", "orders", "statusLabels", "store"]);
+    expect(Object.keys(res.body.data).sort()).toEqual(["checkout", "cms", "finance", "inventory", "meta", "notifications", "orders", "statusLabels", "store"]);
     expect(res.body.data.store.currency).toBe("BDT");
     expect(res.body.data.meta).toEqual(expect.objectContaining({ capiEnabled: expect.any(Boolean) }));
     expect((await analyst.put("/api/v1/settings/orders", { duplicateWindowHours: 12 })).status).toBe(403);
@@ -56,7 +56,7 @@ describe("settings", () => {
     expect(ok.body.data.duplicateWindowHours).toBe(24); // untouched keys keep their value
 
     const meta = await admin.put("/api/v1/settings/meta", { pixelId: "123456789012345", capiEnabled: true });
-    expect(meta.body.data).toEqual({ pixelId: "123456789012345", capiEnabled: true });
+    expect(meta.body.data).toEqual({ pixelId: "123456789012345", capiEnabled: true, purchaseValue: "ORDER_TOTAL" });
 
     const labels = await admin.put("/api/v1/settings/statusLabels", { PENDING: { bn: "অপেক্ষমাণ" } });
     expect(labels.status).toBe(200);

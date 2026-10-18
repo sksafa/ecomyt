@@ -36,6 +36,16 @@ export const authLimiter = rateLimit({
   handler,
 });
 
+/** Browser-mirrored tracking events (ViewContent etc.) – roomy for normal browsing, bounded for abuse. */
+export const trackingLimiter = rateLimit({
+  windowMs: 10 * 60_000,
+  limit: isTest ? 100_000 : 300,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  store: store("track"),
+  handler,
+});
+
 /** Public storefront writes (checkout) – generous but bounded. */
 export const storefrontLimiter = rateLimit({
   windowMs: 10 * 60_000,

@@ -103,6 +103,8 @@ export interface AnnouncementBar {
 }
 
 export interface HomeData {
+  /** product sold on the homepage landing page (null when nothing can be sold) */
+  landing?: { productSlug: string | null };
   banners: Banner[];
   featuredCollections: { collection: CollectionInfo; products: PublicProduct[] }[];
   featuredProducts: PublicProduct[];
@@ -175,15 +177,29 @@ export interface ShippingQuote {
   deliveryCharge: string;
 }
 
+export type DeliveryOptionCode = "INSIDE_DHAKA" | "OUTSIDE_DHAKA";
+
+/** GET /storefront/delivery-options – charges configured by the admin (Settings → Delivery charges). */
+export interface DeliveryOptionInfo {
+  code: DeliveryOptionCode;
+  label: string;
+  labelBn: string;
+  charge: string;
+  isDefault: boolean;
+}
+
 export interface CheckoutResult {
   orderNumber: string;
   status: string;
   subtotal: string;
   deliveryCharge: string;
+  deliveryOption: DeliveryOptionCode | null;
   total: string;
   paymentMethod: string;
   paymentRequired: boolean;
   metaEventId: string;
+  /** one-time Purchase payload for the Pixel (null on replays and for not-yet-paid online orders) */
+  metaPurchase: { eventName: "Purchase"; eventId: string; data: Record<string, unknown> } | null;
   duplicate: boolean;
 }
 
@@ -207,7 +223,10 @@ export interface OrderLookup {
     discount: string;
     lineTotal: string;
   }[];
-  totals: { subtotal: string; discount: string; deliveryCharge: string; total: string; paid: string; due: string };
+  totals: {
+    subtotal: string; discount: string; deliveryCharge: string; total: string; paid: string; due: string;
+    deliveryOption?: DeliveryOptionCode | null; deliveryOptionLabel?: { label: string; labelBn: string } | null;
+  };
   payment: { method: string; status: string };
   shipment: { courier: string; trackingCode: string | null; status: string } | null;
 }

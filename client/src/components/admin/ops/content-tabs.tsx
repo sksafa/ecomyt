@@ -314,7 +314,7 @@ export function FaqsTab() {
 interface ContentSettings {
   announcementBar: { enabled: boolean; text: string; textBn: string; link: string };
   footer: { about: string; facebookUrl: string; instagramUrl: string; whatsapp: string };
-  homepage: { featuredCollectionSlugs: string[] };
+  homepage: { featuredCollectionSlugs: string[]; landingProductSlug: string };
   contact: { phone: string; email: string; address: string };
 }
 
@@ -330,6 +330,13 @@ function ContentSettingsForm({ v }: { v: ContentSettings }) {
   });
   const set = <K extends keyof ContentSettings>(k: K, patch: Partial<ContentSettings[K]>) => setF({ ...f, [k]: { ...f[k], ...patch } });
   const featured = f.homepage.featuredCollectionSlugs;
+  const products = useQuery({
+    queryKey: ["products", "landing-options"],
+    queryFn: () => api<{ id: string; name: string; slug: string; status: string; isPublished: boolean }[]>("/products", { query: { status: "ACTIVE", pageSize: 200, sort: "name" } }),
+    staleTime: 60_000,
+  });
+  const landing = f.homepage.landingProductSlug ?? "";
+  const landingProduct = products.data?.find((p) => p.slug === landing);
   return (
     <div className="space-y-4">
       <Section title="Announcement bar">
@@ -340,8 +347,29 @@ function ContentSettingsForm({ v }: { v: ContentSettings }) {
           <Field label="Link (optional)" htmlFor="ab-link" error={errors["announcementBar.link"]}><Input id="ab-link" value={f.announcementBar.link} onChange={(e) => set("announcementBar", { link: e.target.value })} placeholder="/p/eid-offer" /></Field>
         </div>
       </Section>
+      <Section title="Homepage product">
+        <p className="mb-2 text-xs text-muted-foreground">
+          The home page (<code>/</code>) is a sales page for one product: photos, price, details and an order form. Its name, photos, price, fabric, sizes and
+          care text come from the product itself. The previous catalogue home page is at <code>/home2</code>.
+        </p>
+        <Field label="Product on the home page" htmlFor="hp-product" error={errors["homepage.landingProductSlug"]}>
+          <NativeSelect id="hp-product" className="max-w-md" value={landing} onChange={(e) => set("homepage", { landingProductSlug: e.target.value })}>
+            <option value="">Automatic – newest featured product in stock</option>
+            {landing && !landingProduct && products.data && <option value={landing}>{landing} (not active)</option>}
+            {products.data?.map((p) => (
+              <option key={p.id} value={p.slug}>
+                {p.name}
+                {p.isPublished ? "" : " (not published)"}
+              </option>
+            ))}
+          </NativeSelect>
+        </Field>
+        {landingProduct && !landingProduct.isPublished && (
+          <p className="mt-1 text-xs text-amber-700">This product is not published, so the home page will fall back to the automatic choice until it is.</p>
+        )}
+      </Section>
       <Section title="Homepage featured collections">
-        <p className="mb-2 text-xs text-muted-foreground">Collections shown on the home page, in this order (max 20).</p>
+        <p className="mb-2 text-xs text-muted-foreground">Collections shown on the classic home page (<code>/home2</code>), in this order (max 20).</p>
         {featured.length > 0 && (
           <ol className="mb-2 space-y-1">
             {featured.map((slug, i) => (

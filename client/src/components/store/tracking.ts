@@ -107,27 +107,102 @@ export function attributionPayload() {
 }
 
 // ───────────── Meta Pixel ─────────────
+//
+// Every browser event carries an eventID. ViewContent / InitiateCheckout / AddToCart are mirrored to our server,
+// which sends the same event (same eventID) through the Conversions API, so Meta keeps one of each pair.
+// Purchase is NEVER built here: the backend hands out the Purchase payload exactly once per order
+// (see firePurchase), so refreshes, revisits and retried checkouts cannot create a second conversion.
 
 type FbqArgs = [string, string, Record<string, unknown>?, { eventID: string }?];
 declare global {
   interface Window {
     fbq?: (...args: unknown[]) => void;
     __bbPixelQ?: FbqArgs[];
+    /** set by <StoreTracking> when a pixel id is configured */
+    __bbPixelOn?: boolean;
   }
 }
 
 export type PixelEvent = "PageView" | "ViewContent" | "AddToCart" | "InitiateCheckout" | "Purchase";
 
-/** Fire a standard pixel event. Queued until the pixel script initialises (no-op forever if no pixel id). */
+export const pixelEnabled = () => typeof window !== "undefined" && !!window.__bbPixelOn;
+
+/** Fire a standard pixel event. Queued until the pixel script initialises (no-op when no pixel is configured). */
 export function track(event: PixelEvent, data?: Record<string, unknown>, eventID?: string) {
-  if (typeof window === "undefined") return;
+  if (!pixelEnabled()) return;
   const args: FbqArgs = ["track", event, data, eventID ? { eventID } : undefined];
   while (args.length && args[args.length - 1] === undefined) args.pop();
   if (window.fbq) window.fbq(...args);
   else (window.__bbPixelQ ??= []).push(args);
 }
 
-/** Pixel content payload (SKUs – same ids the server-side Conversions API sends – quantities and value only). */
+const newEventId = (prefix: string) =>
+  `${prefix}.${typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}${Math.random().toString(36).slice(2)}`}`;
+
+type Line = { sku: string; quantity: number; price: string | number; variantId?: string };
+
+/**
+ * Browser event + server mirror (Conversions API) sharing one eventID. The server re-prices items from the
+ * catalogue and adds IP / user agent; no personal data is sent from here.
+ */
+export function trackWithServer(event: "ViewContent" | "InitiateCheckout" | "AddToCart", lines: Line[], extra: Record<string, unknown> = {}) {
+  if (!pixelEnabled() || !lines.length) return;
+  const eventID = newEventId(event === "ViewContent" ? "vc" : event === "AddToCart" ? "atc" : "ic");
+  track(event, { ...contentData(lines), ...extra }, eventID);
+  const items = lines.filter((l) => l.variantId).map((l) => ({ variantId: l.variantId!, quantity: Math.min(10, Math.max(1, l.quantity)) }));
+  if (!items.length) return;
+  try {
+    void fetch("/api/v1/storefront/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      keepalive: true, // survives navigation (e.g. Add to bag → checkout)
+      credentials: "same-origin",
+      body: JSON.stringify({ eventName: event, eventId: eventID, eventSourceUrl: window.location.href, items, fbp: readCookie("_fbp"), fbc: readCookie("_fbc") }),
+    }).catch(() => {});
+  } catch {
+    // tracking must never break shopping
+  }
+}
+
+export interface ServerPurchase {
+  eventName: "Purchase";
+  eventId: string;
+  data: Record<string, unknown>;
+}
+
+const PURCHASE_DONE = "bb_px_purchase_";
+
+/**
+ * Fire the Pixel Purchase from the payload the backend issued for this order (same eventID and parameters as
+ * the server Conversions API event). The backend issues it only once; this per-device guard additionally
+ * stops a second fire if the same payload is ever replayed in this browser.
+ */
+export function firePurchase(p: ServerPurchase | null | undefined) {
+  if (!p?.eventId) return false;
+  try {
+    if (localStorage.getItem(PURCHASE_DONE + p.eventId)) return false;
+    localStorage.setItem(PURCHASE_DONE + p.eventId, String(Date.now()));
+  } catch {
+    // storage unavailable – the server-side one-time hand-off still prevents duplicates
+  }
+  track("Purchase", p.data, p.eventId);
+  return true;
+}
+
+/** InitiateCheckout once per cart content per browsing session (reloading the checkout page does not repeat it). */
+export function initiateCheckoutOnce(lines: (Line & { variantId: string })[]) {
+  if (!pixelEnabled() || !lines.length) return;
+  const signature = lines.map((l) => `${l.variantId}x${l.quantity}`).sort().join("|");
+  try {
+    if (sessionStorage.getItem("bb_px_ic") === signature) return;
+    sessionStorage.setItem("bb_px_ic", signature);
+  } catch {
+    // ignore – fire anyway
+  }
+  trackWithServer("InitiateCheckout", lines);
+}
+
+/** Pixel content payload (SKUs – the same ids the server sends – quantities and value only). */
 export function contentData(lines: { sku: string; quantity: number; price: string | number }[], value?: number) {
   const total = value ?? lines.reduce((s, l) => s + Number(l.price) * l.quantity, 0);
   return {

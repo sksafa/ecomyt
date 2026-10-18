@@ -46,11 +46,15 @@ Payments are completed only after server-side validation (amount + currency + tr
 
 ## Meta (Facebook)
 
-- **Pixel** (browser): `NEXT_PUBLIC_META_PIXEL_ID` or Settings → Meta pixel id. Events: PageView, ViewContent, AddToCart, InitiateCheckout, Purchase (event id `purchase:<orderId>`).
-- **Conversions API** (server): enable in Settings → Meta and set `META_CAPI_ACCESS_TOKEN` (+ optional `META_TEST_EVENT_CODE`). Purchase is sent for storefront orders with the same event id for deduplication; customer data is SHA-256 hashed per Meta's spec; client IP and user agent are captured server-side at checkout. Every send is logged in `MetaEventLog` (never sent twice). The system never identifies a buyer's Facebook profile.
+Pixel + Conversions API with shared event IDs and backend-enforced one-time Purchase: see **[meta-tracking.md](meta-tracking.md)** for events, deduplication guarantees, data sent, setup and the verification checklist.
+
 - **Attribution**: UTM parameters, landing page, referrer, fbclid/fbc/fbp – first and last touch – are stored per website order.
 - **Ad spend**: CSV import (Ads Manager export columns accepted) or manual entry, upserted by platform/date/campaign/adset/ad so re-imports never duplicate.
 
 ## Notifications
 
 In-app (always), email (`SMTP_URL`; otherwise logged), SMS (adapter interface with a logging provider; plug in a licensed Bangladeshi SMS gateway in `server/src/modules/notifications/channels.ts`), WhatsApp Business Cloud API (official; `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, approved templates). Customer messages are transactional only (order confirmed / shipped), off by default, respect opt-outs, and are de-duplicated. No unofficial APIs are used.
+
+## Live admin updates
+
+Admin screens update without a page refresh. After an order is created or changed (after the DB commit), the API pushes a small notice over Server-Sent Events (`GET /api/v1/orders/stream`, requires `orders.view`). The notice goes through Redis pub/sub, so changes made by any API instance or by the worker reach every connected browser. The browser only invalidates its cached queries (orders list and tab counts, open order detail, dashboard, notifications) and re-fetches from the API. It never inserts rows from the notice, so a repeated or missed notice cannot create duplicates. New website orders also show a toast. If the stream drops, the browser reconnects and re-fetches. The orders list also re-fetches every 60 s and when the window regains focus. Reverse proxies must not buffer `text/event-stream` (the API sends `X-Accel-Buffering: no` for nginx).

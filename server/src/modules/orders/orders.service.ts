@@ -4,7 +4,8 @@ import { money, sum, ZERO, type Decimal } from "../../lib/money.js";
 import { audit, diff } from "../../lib/audit.js";
 import { getSetting } from "../../lib/settings.js";
 import { nextOrderNumber, nextReturnNumber } from "../../lib/numbering.js";
-import type { OrderStatus, PaymentMethod, SalesChannel, StatusSource } from "../../generated/prisma/enums.js";
+import type { DeliveryOption, OrderStatus, PaymentMethod, SalesChannel, StatusSource } from "../../generated/prisma/enums.js";
+import { deliveryChargeFor } from "../shipping/delivery-options.js";
 import type { Permission } from "../../rbac/permissions.js";
 import { assessRisk, recomputeCustomerStats, requirePhone, upsertCustomer } from "../customers/customers.service.js";
 import { calculateDeliveryCharge, resolveLocation } from "../shipping/shipping.service.js";
@@ -34,7 +35,7 @@ export interface AttributionInput {
   firstSource?: string; firstMedium?: string; firstCampaign?: string; firstContent?: string; firstTerm?: string; firstLandingPage?: string; firstTouchAt?: string;
   lastSource?: string; lastMedium?: string; lastCampaign?: string; lastContent?: string; lastTerm?: string; lastLandingPage?: string; lastTouchAt?: string;
   referrer?: string; fbclid?: string; fbc?: string; fbp?: string; campaignId?: string; adsetId?: string; adId?: string;
-  clientIpAddress?: string; clientUserAgent?: string;
+  clientIpAddress?: string; clientUserAgent?: string; eventSourceUrl?: string;
 }
 
 export interface CreateOrderInput {
@@ -43,6 +44,8 @@ export interface CreateOrderInput {
   items: ItemInput[];
   discount?: string;
   deliveryCharge?: string; // override (permission orders.override_delivery)
+  /** Website checkout: flat Inside/Outside Dhaka charge from Settings (takes precedence over zone pricing). */
+  deliveryOption?: DeliveryOption | null;
   paymentMethod?: PaymentMethod;
   channel?: SalesChannel;
   isPreorder?: boolean;
@@ -161,9 +164,20 @@ export async function createOrder(input: CreateOrderInput, actor: Actor) {
   try {
     const order = await prisma.$transaction(
       async (tx) => {
-        const location = await resolveLocation(tx, input.shipping);
+        // Inside Dhaka orders without a picked district still belong to the Dhaka zone (courier fee estimates, reports)
+        const location = await resolveLocation(tx, {
+          ...input.shipping,
+          districtName: input.shipping.districtName ?? (input.deliveryOption === "INSIDE_DHAKA" && !input.shipping.districtId && !input.shipping.areaId ? "Dhaka" : null),
+        });
         const lines = await priceLines(tx, input.items, actor, input.requirePublished ?? false);
-        const totals = await computeTotals(tx, lines, { zoneId: location.zoneId, discount: input.discount, deliveryOverride: input.deliveryCharge, paidAmount: ZERO }, actor);
+        // the delivery option's charge is read from the database here – never taken from the client
+        const optionCharge = input.deliveryOption ? (await deliveryChargeFor(input.deliveryOption, tx)).toFixed(2) : undefined;
+        const totals = await computeTotals(
+          tx,
+          lines,
+          { zoneId: location.zoneId, discount: input.discount, deliveryOverride: optionCharge ?? input.deliveryCharge, paidAmount: ZERO },
+          optionCharge ? { ...actor, permissions: "system" } : actor,
+        );
 
         const customer = await upsertCustomer(tx, {
           name: input.customer.name.trim(),
@@ -203,6 +217,7 @@ export async function createOrder(input: CreateOrderInput, actor: Actor) {
             areaName: location.areaName,
             zoneId: location.zoneId,
             deliveryNote: input.shipping.note ?? null,
+            deliveryOption: input.deliveryOption ?? null,
             ...totals,
             packagingCost: money(ordersCfg.defaultPackagingCost),
             riskScore: risk.score,
@@ -242,6 +257,11 @@ export async function createOrder(input: CreateOrderInput, actor: Actor) {
           }
         }
 
+        // customer website orders get one persistent Meta Purchase event id (shared by Pixel and Conversions API)
+        if (actor.source === "STOREFRONT" && created.channel === "WEBSITE") {
+          await tx.order.update({ where: { id: created.id }, data: { metaPurchaseEventId: `purchase:${created.id}` } });
+        }
+
         await recomputeCustomerStats(tx, customer.id);
         await audit(tx, {
           userId: actor.userId, action: "order.created", entityType: "Order", entityId: created.id,
@@ -274,7 +294,7 @@ function attributionData(a: AttributionInput) {
     lastTerm: trim(a.lastTerm), lastLandingPage: trim(a.lastLandingPage), lastTouchAt: date(a.lastTouchAt),
     referrer: trim(a.referrer), fbclid: trim(a.fbclid), fbc: trim(a.fbc), fbp: trim(a.fbp),
     campaignId: trim(a.campaignId), adsetId: trim(a.adsetId), adId: trim(a.adId),
-    clientIpAddress: trim(a.clientIpAddress), clientUserAgent: trim(a.clientUserAgent),
+    clientIpAddress: trim(a.clientIpAddress), clientUserAgent: trim(a.clientUserAgent), eventSourceUrl: trim(a.eventSourceUrl),
   };
 }
 

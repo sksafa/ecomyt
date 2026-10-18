@@ -10,6 +10,7 @@ import type { AuthUser } from "../../middleware/auth.js";
 import { computeOrderProfit } from "../finance/ledger.service.js";
 import { assessRisk, RISK_FLAG_TEXT } from "../customers/customers.service.js";
 import * as orders from "./orders.service.js";
+import { onRealtime, onRealtimeShutdown } from "../../lib/realtime.js";
 import { buildOrderWhere, listOrders, orderBy, orderFilterSchema, orderListInclude, serializeOrder } from "./orders.query.js";
 import { STATUS_LABELS, TRANSITIONS, isSystemOnly, permissionFor } from "./order-status.js";
 
@@ -49,6 +50,50 @@ route({
   handler: async ({ query, user }) => {
     const { rows, total, statusCounts } = await listOrders(query, user);
     return withMeta(rows, { ...pageMeta(query.page, query.pageSize, total), statusCounts });
+  },
+});
+
+route({
+  method: "get",
+  path: "/stream",
+  summary: "Live order updates (Server-Sent Events) for admin screens",
+  description:
+    "Keeps an `text/event-stream` open and sends an `order` event (orderId, orderNumber, type, status, …) whenever an order is created or changes, " +
+    "in any API or worker process. Clients re-fetch data from the normal endpoints; the stream itself carries no order data beyond a summary. " +
+    "A comment line is sent every 25s as a heartbeat. Browsers reconnect automatically.",
+  access: "orders.view",
+  raw: true,
+  handler: ({ req, res }) => {
+    res.status(200);
+    res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no"); // nginx / proxies: do not buffer the stream
+    res.flushHeaders();
+    req.socket.setTimeout(0);
+    req.socket.setNoDelay(true);
+
+    let open = true;
+    const send = (chunk: string) => {
+      if (open) res.write(chunk);
+    };
+    send("retry: 5000\n");
+    send(`event: ready\ndata: ${JSON.stringify({ at: new Date().toISOString() })}\n\n`);
+    const off = onRealtime((m) => {
+      if (m.topic !== "orders") return;
+      send(`event: order\ndata: ${JSON.stringify(m)}\n\n`);
+    });
+    const heartbeat = setInterval(() => send(`: ping ${Date.now()}\n\n`), 25_000);
+    const close = () => {
+      if (!open) return;
+      open = false;
+      clearInterval(heartbeat);
+      off();
+      offShutdown();
+      res.end();
+    };
+    const offShutdown = onRealtimeShutdown(close);
+    req.on("close", close);
   },
 });
 
@@ -250,6 +295,18 @@ route({
       stock: { reserved: o.stockReserved, deducted: o.stockDeducted },
       nextStatuses: TRANSITIONS[o.status].map((to) => ({ to, systemOnly: isSystemOnly(o.status, to), allowed: !isSystemOnly(o.status, to) && user.permissions.has(permissionFor(to)) })),
       ...(finance ? { profit: await computeOrderProfit(prisma, o), financeStatus: o.financeStatus } : {}),
+      ...(user.permissions.has("marketing.view") && o.metaPurchaseEventId
+        ? {
+            metaTracking: {
+              eventId: o.metaPurchaseEventId,
+              browserClaimedAt: o.pixelPurchaseClaimedAt,
+              server: await prisma.metaEventLog.findUnique({
+                where: { eventName_eventId: { eventName: "Purchase", eventId: o.metaPurchaseEventId } },
+                select: { id: true, status: true, attempts: true, error: true, eventsReceived: true, fbtraceId: true, testEventCode: true, sentAt: true, updatedAt: true, payload: true },
+              }),
+            },
+          }
+        : {}),
     };
   },
 });

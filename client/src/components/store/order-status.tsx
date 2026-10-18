@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertCircle, Check, CheckCircle2, Copy, Loader2, Package, PartyPopper, Truck, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiError, errorMessage } from "@/lib/api";
@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { useHydrated } from "./cart";
 import { LAST_ORDER_STORE, normalizePhone } from "./checkout-form";
 import type { OrderLookup } from "./types";
+import { firePurchase, type ServerPurchase } from "./tracking";
 import { Container, Img } from "./ui";
 
 const FRIENDLY: Record<string, { en: string; bn: string }> = {
@@ -85,6 +86,18 @@ function OrderStatusInner() {
     enabled,
     retry: false,
   });
+
+  // Online payment returned as successful: ask the backend for the order's one-time Purchase payload.
+  // The server only issues it once per order (after verifying the payment), so refreshing or revisiting
+  // this page – on any device – never fires a second Purchase.
+  const purchaseAsked = useRef(false);
+  useEffect(() => {
+    if (payment !== "success" || !q.data || purchaseAsked.current) return;
+    purchaseAsked.current = true;
+    api<{ purchase: ServerPurchase | null }>(`/storefront/orders/${encodeURIComponent(urlOrder.trim())}/purchase-event`, { method: "POST", body: { phone: urlPhone } })
+      .then((r) => firePurchase(r.purchase))
+      .catch(() => {});
+  }, [payment, q.data, urlOrder, urlPhone]);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -277,7 +290,7 @@ function OrderResult({ o }: { o: OrderLookup }) {
         <dl className="mt-3 space-y-1.5 border-t border-border pt-3 text-sm">
           <Row k="Subtotal" v={bdt(o.totals.subtotal)} />
           {Number(o.totals.discount) > 0 && <Row k="Discount" v={`-${bdt(o.totals.discount)}`} />}
-          <Row k="Delivery charge" v={bdt(o.totals.deliveryCharge)} />
+          <Row k={o.totals.deliveryOptionLabel ? `Delivery charge (${o.totals.deliveryOptionLabel.label})` : "Delivery charge"} v={bdt(o.totals.deliveryCharge)} />
           <Row k="Total · মোট" v={bdt(o.totals.total)} strong />
           {Number(o.totals.paid) > 0 && <Row k="Paid" v={bdt(o.totals.paid)} />}
           {Number(o.totals.due) > 0 && !cancelled && <Row k={o.payment.method === "COD" ? "Pay on delivery" : "Due"} v={bdt(o.totals.due)} strong />}

@@ -314,7 +314,14 @@ const cmsSettingsSchema = z.object({
     .object({ about: z.string().trim().max(2000), facebookUrl: safeUrl.or(z.literal("")), instagramUrl: safeUrl.or(z.literal("")), whatsapp: z.string().trim().max(30) })
     .partial()
     .optional(),
-  homepage: z.object({ featuredCollectionSlugs: z.array(z.string().trim().min(1).max(100)).max(20) }).partial().optional(),
+  homepage: z
+    .object({
+      featuredCollectionSlugs: z.array(z.string().trim().min(1).max(100)).max(20),
+      /** product sold on the homepage landing page ("" = automatic) */
+      landingProductSlug: z.string().trim().max(200).regex(/^[a-z0-9-]*$/, "Choose a product from the list"),
+    })
+    .partial()
+    .optional(),
   contact: z.object({ phone: z.string().trim().max(30), email: z.string().trim().email().or(z.literal("")), address: z.string().trim().max(500) }).partial().optional(),
 });
 

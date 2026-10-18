@@ -68,6 +68,15 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     onSuccess: () => { refresh(); toast.success("Payment verified"); },
     onError: (e) => toast.error(errorMessage(e)),
   });
+  const retryMeta = useMutation({
+    mutationFn: (logId: string) => api<{ status: string; reason?: string }>(`/marketing/meta/events/${logId}/retry`, { method: "POST" }),
+    onSuccess: (r) => {
+      refresh();
+      if (r.status === "SENT") toast.success("Sent to Meta");
+      else toast.error(r.reason ?? `Status: ${r.status}`);
+    },
+    onError: (e) => toast.error(errorMessage(e)),
+  });
   const sync = useMutation({
     mutationFn: (shipmentId: string) => api<{ applied: boolean; status: string }>(`/couriers/shipments/${shipmentId}/sync`, { method: "POST" }),
     onSuccess: (r) => { refresh(); toast.success(`Courier status: ${r.status.toLowerCase()}`); },
@@ -150,7 +159,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
             <dl className="mt-3 grid gap-1 border-t pt-3 text-sm sm:ml-auto sm:w-72">
               <div className="flex justify-between"><dt>Subtotal</dt><dd>{bdt(o.amounts.subtotal)}</dd></div>
               <div className="flex justify-between"><dt>Discount</dt><dd>−{bdt(o.amounts.discount)}</dd></div>
-              <div className="flex justify-between"><dt>Delivery charge</dt><dd>{bdt(o.amounts.deliveryCharge)}</dd></div>
+              <div className="flex justify-between"><dt>Delivery charge{o.shipping.deliveryOption && <span className="text-muted-foreground"> ({o.shipping.deliveryOption === "INSIDE_DHAKA" ? "Inside Dhaka" : "Outside Dhaka"})</span>}</dt><dd>{bdt(o.amounts.deliveryCharge)}</dd></div>
               <div className="flex justify-between font-semibold"><dt>Total</dt><dd>{bdt(o.amounts.total)}</dd></div>
               <div className="flex justify-between text-blue-700"><dt>Paid</dt><dd>{bdt(o.amounts.paid)}</dd></div>
               <div className="flex justify-between font-semibold text-red-600"><dt>Due (COD)</dt><dd>{bdt(o.amounts.due)}</dd></div>
@@ -312,6 +321,38 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                   <span>{r.status.toLowerCase()}</span>
                 </Link>
               ))}
+            </Section>
+          )}
+
+          {o.metaTracking && (
+            <Section title="Meta tracking">
+              <dl className="space-y-1.5 text-sm">
+                <div className="flex justify-between gap-2"><dt className="text-muted-foreground">Event ID</dt><dd className="truncate font-mono text-xs" title={o.metaTracking.eventId}>{o.metaTracking.eventId}</dd></div>
+                <div className="flex justify-between gap-2"><dt className="text-muted-foreground">Browser Pixel</dt><dd>{o.metaTracking.browserClaimedAt ? `issued ${dhakaDateTime(o.metaTracking.browserClaimedAt)}` : "not issued"}</dd></div>
+                <div className="flex items-center justify-between gap-2">
+                  <dt className="text-muted-foreground">Conversions API</dt>
+                  <dd>
+                    {o.metaTracking.server ? (
+                      <Pill tone={o.metaTracking.server.status === "SENT" ? "green" : o.metaTracking.server.status === "FAILED" ? "red" : o.metaTracking.server.status === "PENDING" ? "amber" : "gray"}>
+                        {o.metaTracking.server.status.toLowerCase()}{o.metaTracking.server.testEventCode ? " (test)" : ""}
+                      </Pill>
+                    ) : "not queued"}
+                  </dd>
+                </div>
+                {o.metaTracking.server && (
+                  <p className="text-xs text-muted-foreground">
+                    {o.metaTracking.server.attempts} attempt{o.metaTracking.server.attempts === 1 ? "" : "s"}
+                    {o.metaTracking.server.sentAt ? ` · delivered ${dhakaDateTime(o.metaTracking.server.sentAt)}` : ""}
+                    {o.metaTracking.server.fbtraceId ? ` · trace ${o.metaTracking.server.fbtraceId}` : ""}
+                  </p>
+                )}
+                {o.metaTracking.server?.error && <p className="text-xs text-red-600">{o.metaTracking.server.error}</p>}
+                {o.metaTracking.server && ["FAILED", "SKIPPED"].includes(o.metaTracking.server.status) && can("marketing.manage") && (
+                  <Button size="sm" variant="outline" onClick={() => retryMeta.mutate(o.metaTracking!.server!.id)} disabled={retryMeta.isPending}>
+                    <RefreshCw className="size-4" /> Send again (same event ID)
+                  </Button>
+                )}
+              </dl>
             </Section>
           )}
 

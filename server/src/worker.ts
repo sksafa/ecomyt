@@ -8,7 +8,7 @@ import { prisma } from "./lib/prisma.js";
 import { closeRedis, getRedis } from "./lib/redis.js";
 import { closeQueues, QUEUES } from "./jobs/queues.js";
 import { registerSchedules } from "./jobs/schedules.js";
-import { codSettlementReminderJob, courierSyncJob, dailySummaryJob, lowStockScanJob } from "./jobs/scheduled.js";
+import { codSettlementReminderJob, courierSyncJob, dailySummaryJob, lowStockScanJob, pruneMetaEventLogsJob } from "./jobs/scheduled.js";
 import { retryBookingJob } from "./modules/couriers/shipments.service.js";
 import { processMetaEventJob, type MetaSendJob } from "./modules/marketing/meta-capi.js";
 import { deliverNotification, type DeliverJobData } from "./modules/notifications/outbound.service.js";
@@ -29,6 +29,7 @@ const handlers: Record<string, Record<string, Handler>> = {
   [QUEUES.scheduled]: {
     "daily-summary": (job) => dailySummaryJob(job.data as { date?: string }),
     "low-stock-scan": () => lowStockScanJob(),
+    "meta-log-prune": () => pruneMetaEventLogsJob(),
     "cod-settlement-reminder": () => codSettlementReminderJob(),
   },
 };

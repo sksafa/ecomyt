@@ -28,4 +28,5 @@ Details: [docs/setup.md](docs/setup.md). Production: [docs/deployment.md](docs/d
 - [Business rules](docs/business-rules.md) – order workflow, inventory policy, risk indicators, delivery charges, returns, payments
 - [Finance definitions](docs/finance.md) – revenue recognition, ledger, estimated vs reconciled profit
 - [Integrations](docs/integrations.md) – couriers (capability matrix and verification status), payments, Meta, notifications
+- [Meta Pixel + Conversions API](docs/meta-tracking.md) – events, Purchase deduplication, setup and verification
 - [Security](docs/security.md) · [Testing](docs/testing.md) · [API](docs/api.md) · [Deployment & backups](docs/deployment.md)
