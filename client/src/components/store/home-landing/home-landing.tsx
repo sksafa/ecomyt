@@ -6,12 +6,13 @@ import { landingThemeClass } from "../fonts";
 import type { DeliveryOptionInfo, Faq, HomeData, PublicProductDetail } from "../types";
 import { Img, Stars } from "../ui";
 import { HeroGallery, LandingOrder, LandingViewContent, ORDER_ANCHOR, OrderButton, StickyOrderBar, type Slide } from "./landing-interactive";
+import { ReviewCarousel } from "./review-carousel";
 
 /*
  * Homepage sales page ("/") for one product, modelled on the brand's embroidered-orna landing pages.
  * Everything product-specific (name, photos, price, fabric, sizes, stock) comes from the catalogue; the
  * Bengali copy below is brand-level and makes no product claims, so it stays true for whichever product
- * is selected in Content settings. Reviews are only real testimonials from the CMS.
+ * is selected in Content settings. Reviews are only real testimonials from the CMS (never invented).
  */
 
 const uniq = (xs: (string | null)[]) => [...new Set(xs.filter((x): x is string => !!x?.trim()))];
@@ -100,6 +101,10 @@ export function HomeLanding({ product, home, faqs, delivery }: { product: Public
     { q: "Return করলে delivery charge কে বহন করবে?", a: "কোনো কারণে প্রোডাক্ট রিটার্ন করতে চাইলে রিটার্নের ক্ষেত্রে delivery charge customer-কে বহন করতে হবে।" },
     ...faqs.map((f) => ({ q: f.question, a: f.answer })),
   ];
+
+  const reviews = home.testimonials.filter((t) => t.reviewImageUrl || t.quote.trim());
+  const rated = reviews.filter((t) => t.rating);
+  const avgRating = rated.length ? rated.reduce((n, t) => n + (t.rating ?? 0), 0) / rated.length : 0;
 
   const trust = [
     { icon: Wallet, text: "ক্যাশ অন ডেলিভারি" },
@@ -207,6 +212,30 @@ export function HomeLanding({ product, home, faqs, delivery }: { product: Public
         </Wrap>
       </section>
 
+      {/* 5 · Reviews – real testimonials from Content → Testimonials (screenshots and written reviews) */}
+      {reviews.length > 0 && (
+        <section className="py-16 sm:py-24" aria-labelledby="lp-reviews">
+          <Wrap>
+            <div className="mb-8 text-center sm:mb-12">
+              <p className="lp-eyebrow">Customer reviews</p>
+              <h2 id="lp-reviews" className="lp-serif mt-2 text-[1.9rem] leading-tight text-[var(--lp-maroon-deep)] sm:text-[2.6rem]">কাস্টমারদের মতামত</h2>
+              {rated.length > 0 && (
+                <p className="mt-3 inline-flex items-center gap-2 text-sm text-[var(--lp-muted)]">
+                  <Stars rating={Math.round(avgRating)} />
+                  <span>
+                    <b className="font-semibold text-[var(--lp-ink)]">{avgRating.toFixed(1)}</b>/5 · {rated.length}টি রেটিং
+                  </span>
+                </p>
+              )}
+            </div>
+            <ReviewCarousel reviews={reviews} />
+            <div className="mt-10 text-center">
+              <OrderButton />
+            </div>
+          </Wrap>
+        </section>
+      )}
+
       {/* 6 · Offer */}
       <section className="bg-[var(--lp-cream)] py-16 sm:py-24">
         <Wrap>
@@ -234,39 +263,8 @@ export function HomeLanding({ product, home, faqs, delivery }: { product: Public
         </Wrap>
       </section>
 
-      {/* 5 · Reviews (real CMS testimonials only) */}
-      {home.testimonials.length > 0 && (
-        <section className="py-16 sm:py-24">
-          <Wrap>
-            <SectionHead eyebrow="Customer reviews" title="কাস্টমারদের মতামত" />
-            <div className="bb-scroll-x -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-3">
-              {home.testimonials.map((t) => (
-                <figure key={t.id} className="flex w-[85%] shrink-0 snap-center flex-col rounded-2xl border border-[var(--lp-sand)] bg-white p-6 sm:w-auto">
-                  {t.rating ? <Stars rating={t.rating} /> : null}
-                  <blockquote className="mt-3 flex-1 text-[0.98rem] leading-relaxed text-[var(--lp-ink)]">“{t.quote}”</blockquote>
-                  <figcaption className="mt-5 flex items-center gap-3 border-t border-[var(--lp-sand)] pt-4">
-                    {t.imageUrl ? (
-                      <Img src={t.imageUrl} alt="" className="size-10 rounded-full" />
-                    ) : (
-                      <span className="lp-serif grid size-10 place-items-center rounded-full bg-[var(--lp-cream)] text-[var(--lp-maroon)]">{t.name.slice(0, 1)}</span>
-                    )}
-                    <span>
-                      <span className="block text-sm font-semibold">{t.name}</span>
-                      {t.location && <span className="block text-xs text-[var(--lp-muted)]">{t.location}</span>}
-                    </span>
-                  </figcaption>
-                </figure>
-              ))}
-            </div>
-            <div className="mt-10 text-center">
-              <OrderButton />
-            </div>
-          </Wrap>
-        </section>
-      )}
-
       {/* Care guide */}
-      <section className={cn("py-16 sm:py-24", home.testimonials.length > 0 && "pt-0 sm:pt-0")}>
+      <section className="py-16 sm:py-24">
         <Wrap className="max-w-3xl">
           <SectionHead eyebrow="Care guide" title="কাপড়ের যত্নের নির্দেশনা" />
           <ul className="divide-y divide-[var(--lp-gold)]/20 rounded-2xl bg-[var(--lp-cream)] px-6 py-2 sm:px-9">

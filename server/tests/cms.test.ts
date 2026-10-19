@@ -155,6 +155,27 @@ describe("banners, testimonials, faqs", () => {
     expect((await marketer.get(`/api/v1/cms/faqs/${f2.body.data.id}`)).status).toBe(404);
     expect(await prisma.auditLog.count({ where: { entityId: t.body.data.id, action: { startsWith: "testimonial." } } })).toBe(2);
   });
+
+  it("accepts screenshot reviews without inventing a rating, and rejects empty reviews", async () => {
+    const shot = await marketer.post("/api/v1/cms/testimonials", { reviewImageUrl: "/uploads/test/review-1.jpg", sortOrder: -9999 });
+    expect(shot.status).toBe(201);
+    expect(shot.body.data).toMatchObject({ name: "", quote: "", rating: null, reviewImageUrl: "/uploads/test/review-1.jpg" });
+    try {
+      const home = await api.get("/api/v1/storefront/home");
+      const pub = home.body.data.testimonials.find((x: { id: string }) => x.id === shot.body.data.id);
+      expect(pub).toMatchObject({ rating: null, reviewImageUrl: "/uploads/test/review-1.jpg" });
+
+      // nothing to show
+      expect((await marketer.post("/api/v1/cms/testimonials", { name: "Rumana" })).status).toBe(400);
+      // a written quote needs the customer's name
+      expect((await marketer.post("/api/v1/cms/testimonials", { quote: "Lovely work" })).status).toBe(400);
+      // removing the screenshot from a screenshot-only review would leave it empty
+      expect((await marketer.put(`/api/v1/cms/testimonials/${shot.body.data.id}`, { reviewImageUrl: null })).status).toBe(400);
+      expect((await marketer.post("/api/v1/cms/testimonials", { reviewImageUrl: "javascript:alert(1)" })).status).toBe(422);
+    } finally {
+      await marketer.delete(`/api/v1/cms/testimonials/${shot.body.data.id}`);
+    }
+  });
 });
 
 describe("content settings", () => {

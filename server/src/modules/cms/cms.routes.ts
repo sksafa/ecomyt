@@ -150,14 +150,21 @@ crud({
   entity: "Testimonial",
   label: "testimonials",
   schema: z.object({
-    name: z.string().trim().min(1).max(100),
+    // name / quote may be empty for a screenshot review (the screenshot is the review)
+    name: z.string().trim().max(100).default(""),
     location: optText(100),
-    quote: z.string().trim().min(1).max(2000),
-    rating: z.number().int().min(1).max(5).default(5),
+    quote: z.string().trim().max(2000).default(""),
+    /** only what the customer actually gave – never assumed */
+    rating: z.number().int().min(1).max(5).nullish(),
     imageUrl: safeUrl.nullish(),
+    reviewImageUrl: safeUrl.nullish(),
     isActive: z.boolean().default(true),
     sortOrder: z.number().int().min(-10_000).max(10_000).default(0),
   }),
+  validate: (d) => {
+    if (!String(d.quote ?? "").trim() && !d.reviewImageUrl) throw badRequest("Add the review text or a screenshot of the review");
+    if (String(d.quote ?? "").trim() && !String(d.name ?? "").trim()) throw badRequest("Add the customer's name for a written review");
+  },
   orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
   delegate: prisma.testimonial as never,
 });

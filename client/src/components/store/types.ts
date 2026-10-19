@@ -66,9 +66,14 @@ export interface Testimonial {
   id: string;
   name: string;
   location: string | null;
+  /** may be empty when the review is a screenshot */
   quote: string;
+  /** null = the customer gave no star rating */
   rating: number | null;
+  /** customer's photo (avatar) */
   imageUrl: string | null;
+  /** screenshot / photo of the review itself */
+  reviewImageUrl?: string | null;
 }
 
 export interface Faq {

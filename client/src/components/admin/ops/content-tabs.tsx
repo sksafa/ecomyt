@@ -186,30 +186,39 @@ export function PagesTab() {
 
 // ───────────── testimonials ─────────────
 
-interface Testimonial { id: string; name: string; location: string | null; quote: string; rating: number; imageUrl: string | null; isActive: boolean; sortOrder: number }
+interface Testimonial { id: string; name: string; location: string | null; quote: string; rating: number | null; imageUrl: string | null; reviewImageUrl: string | null; isActive: boolean; sortOrder: number }
 
 function TestimonialDialog({ t, onClose }: { t: Testimonial | "new"; onClose: () => void }) {
   const x = t === "new" ? null : t;
-  const [f, setF] = useState({ name: x?.name ?? "", location: x?.location ?? "", quote: x?.quote ?? "", rating: x?.rating ?? 5, imageUrl: x?.imageUrl ?? "", isActive: x?.isActive ?? true, sortOrder: String(x?.sortOrder ?? 0) });
+  // rating stays empty unless the customer actually gave one (never assume 5 stars)
+  const [f, setF] = useState({ name: x?.name ?? "", location: x?.location ?? "", quote: x?.quote ?? "", rating: x?.rating ?? null as number | null, imageUrl: x?.imageUrl ?? "", reviewImageUrl: x?.reviewImageUrl ?? "", isActive: x?.isActive ?? true, sortOrder: String(x?.sortOrder ?? 0) });
   const { save, saving, errors } = useCmsSave("/cms/testimonials", "testimonials", onClose);
+  const hasText = !!f.quote.trim();
   return (
-    <EditDialog title={x ? "Edit testimonial" : "New testimonial"} onClose={onClose} saving={saving} disabled={!f.name.trim() || !f.quote.trim()}
-      onSave={() => save({ id: x?.id, body: { name: f.name.trim(), location: orNull(f.location), quote: f.quote.trim(), rating: f.rating, imageUrl: orNull(f.imageUrl), isActive: f.isActive, sortOrder: Number(f.sortOrder) || 0 } })}>
+    <EditDialog title={x ? "Edit testimonial" : "New testimonial"} onClose={onClose} saving={saving} disabled={(!hasText && !f.reviewImageUrl) || (hasText && !f.name.trim())}
+      onSave={() => save({ id: x?.id, body: { name: f.name.trim(), location: orNull(f.location), quote: f.quote.trim(), rating: f.rating, imageUrl: orNull(f.imageUrl), reviewImageUrl: orNull(f.reviewImageUrl), isActive: f.isActive, sortOrder: Number(f.sortOrder) || 0 } })}>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Customer name *" htmlFor="t-name" error={errors.name}><Input id="t-name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
+        <div className="sm:col-span-2">
+          <Field label="Review screenshot" htmlFor="t-shot" error={errors.reviewImageUrl}>
+            <ImageField id="t-shot" value={f.reviewImageUrl} onChange={(reviewImageUrl) => setF({ ...f, reviewImageUrl })} />
+          </Field>
+          <p className="mt-1 text-xs text-muted-foreground">A screenshot of the customer&apos;s real message or comment (Messenger, WhatsApp, Facebook). Add a screenshot, a written quote, or both.</p>
+        </div>
+        <Field label={hasText ? "Customer name *" : "Customer name"} htmlFor="t-name" error={errors.name}><Input id="t-name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
         <Field label="Location" htmlFor="t-loc" error={errors.location}><Input id="t-loc" value={f.location} onChange={(e) => setF({ ...f, location: e.target.value })} placeholder="Dhanmondi, Dhaka" /></Field>
-        <div className="sm:col-span-2"><Field label="Quote * (English or Bangla)" htmlFor="t-quote" error={errors.quote}><Textarea id="t-quote" rows={4} value={f.quote} onChange={(e) => setF({ ...f, quote: e.target.value })} /></Field></div>
-        <Field label="Rating">
-          <div className="flex gap-1" role="radiogroup" aria-label="Rating">
+        <div className="sm:col-span-2"><Field label={f.reviewImageUrl ? "Quote (optional)" : "Quote * (English or Bangla)"} htmlFor="t-quote" error={errors.quote}><Textarea id="t-quote" rows={4} value={f.quote} onChange={(e) => setF({ ...f, quote: e.target.value })} /></Field></div>
+        <Field label="Rating (only if the customer gave one)">
+          <div className="flex items-center gap-1" role="radiogroup" aria-label="Rating">
             {[1, 2, 3, 4, 5].map((n) => (
               <button key={n} type="button" role="radio" aria-checked={f.rating === n} aria-label={`${n} star${n > 1 ? "s" : ""}`} onClick={() => setF({ ...f, rating: n })}>
-                <Star className={cn("size-6", n <= f.rating ? "fill-amber-400 text-amber-400" : "text-slate-300")} />
+                <Star className={cn("size-6", f.rating && n <= f.rating ? "fill-amber-400 text-amber-400" : "text-slate-300")} />
               </button>
             ))}
+            <button type="button" role="radio" aria-checked={f.rating === null} onClick={() => setF({ ...f, rating: null })} className={cn("ml-2 rounded px-2 py-0.5 text-xs", f.rating === null ? "bg-muted font-medium" : "text-muted-foreground hover:bg-muted")}>No rating</button>
           </div>
         </Field>
         <Field label="Sort order" htmlFor="t-sort"><Input id="t-sort" type="number" value={f.sortOrder} onChange={(e) => setF({ ...f, sortOrder: e.target.value })} /></Field>
-        <div className="sm:col-span-2"><Field label="Photo" htmlFor="t-img" error={errors.imageUrl}><ImageField id="t-img" value={f.imageUrl} onChange={(imageUrl) => setF({ ...f, imageUrl })} /></Field></div>
+        <div className="sm:col-span-2"><Field label="Customer photo (small avatar, optional)" htmlFor="t-img" error={errors.imageUrl}><ImageField id="t-img" value={f.imageUrl} onChange={(imageUrl) => setF({ ...f, imageUrl })} /></Field></div>
         <div className="sm:col-span-2"><ToggleRow id="t-active" label="Show on the storefront" checked={f.isActive} onChange={(isActive) => setF({ ...f, isActive })} /></div>
       </div>
     </EditDialog>
@@ -224,20 +233,20 @@ export function TestimonialsTab() {
   const remove = useDelete("/cms/testimonials", "testimonials");
   return (
     <Section title="Testimonials" actions={<Button size="sm" onClick={() => setEdit("new")}><Plus className="size-4" /> New testimonial</Button>}>
-      {q.isLoading ? <LoadingRows rows={3} /> : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : !q.data?.data.length ? <EmptyState title="No testimonials" description="Add real customer reviews (with their permission) to build trust." /> : (
+      {q.isLoading ? <LoadingRows rows={3} /> : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : !q.data?.data.length ? <EmptyState title="No testimonials" description="Add real customer reviews (with their permission) – a written quote or a screenshot of their message. They appear on the home page." /> : (
         <>
           <ul className="grid gap-3 md:grid-cols-2">
             {q.data.data.map((t) => (
               <li key={t.id} className={cn("flex gap-3 rounded-lg border bg-white p-3", !t.isActive && "opacity-60")}>
-                {t.imageUrl ? <img src={t.imageUrl} alt="" className="size-12 shrink-0 rounded-full object-cover" /> : <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-muted font-semibold">{t.name.slice(0, 1)}</div>}
+                {t.reviewImageUrl ? <img src={t.reviewImageUrl} alt="Review screenshot" className="h-20 w-14 shrink-0 rounded border bg-muted object-cover object-top" /> : t.imageUrl ? <img src={t.imageUrl} alt="" className="size-12 shrink-0 rounded-full object-cover" /> : <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-muted font-semibold">{t.name.slice(0, 1) || "?"}</div>}
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2"><span className="font-medium">{t.name}</span><span className="text-xs text-amber-500" aria-label={`${t.rating} of 5`}>{"★".repeat(t.rating)}<span className="text-slate-300">{"★".repeat(5 - t.rating)}</span></span>{!t.isActive && <Pill tone="gray">hidden</Pill>}</div>
+                  <div className="flex flex-wrap items-center gap-2"><span className="font-medium">{t.name || (t.reviewImageUrl ? "Screenshot review" : "")}</span>{t.rating ? <span className="text-xs text-amber-500" aria-label={`${t.rating} of 5`}>{"★".repeat(t.rating)}<span className="text-slate-300">{"★".repeat(5 - t.rating)}</span></span> : <span className="text-xs text-muted-foreground">no rating</span>}{!t.isActive && <Pill tone="gray">hidden</Pill>}</div>
                   {t.location && <div className="text-xs text-muted-foreground">{t.location}</div>}
-                  <p className="mt-1 line-clamp-3 text-sm">“{t.quote}”</p>
+                  {t.quote && <p className="mt-1 line-clamp-3 text-sm">“{t.quote}”</p>}
                 </div>
                 <div className="flex flex-col">
-                  <Button size="icon" variant="ghost" className="size-8" aria-label={`Edit ${t.name}`} onClick={() => setEdit(t)}><Pencil className="size-4" /></Button>
-                  <Button size="icon" variant="ghost" className="size-8 text-red-700" aria-label={`Delete ${t.name}`} onClick={() => setDel(t)}><Trash2 className="size-4" /></Button>
+                  <Button size="icon" variant="ghost" className="size-8" aria-label={`Edit ${t.name || "review"}`} onClick={() => setEdit(t)}><Pencil className="size-4" /></Button>
+                  <Button size="icon" variant="ghost" className="size-8 text-red-700" aria-label={`Delete ${t.name || "review"}`} onClick={() => setDel(t)}><Trash2 className="size-4" /></Button>
                 </div>
               </li>
             ))}
@@ -246,7 +255,7 @@ export function TestimonialsTab() {
         </>
       )}
       {edit && <TestimonialDialog t={edit} onClose={() => setEdit(null)} />}
-      <ConfirmDialog open={!!del} onOpenChange={(o) => !o && setDel(null)} title={`Delete ${del?.name}'s testimonial?`} destructive confirmLabel="Delete" onConfirm={() => remove(del!.id)} />
+      <ConfirmDialog open={!!del} onOpenChange={(o) => !o && setDel(null)} title={del?.name ? `Delete ${del.name}'s testimonial?` : "Delete this review?"} destructive confirmLabel="Delete" onConfirm={() => remove(del!.id)} />
     </Section>
   );
 }

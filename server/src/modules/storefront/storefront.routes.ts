@@ -36,7 +36,7 @@ const publicTestimonials = (take: number) =>
     where: { isActive: true },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
     take,
-    select: { id: true, name: true, location: true, quote: true, rating: true, imageUrl: true },
+    select: { id: true, name: true, location: true, quote: true, rating: true, imageUrl: true, reviewImageUrl: true },
   });
 
 const publicFaqs = (category?: string | null) =>

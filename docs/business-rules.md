@@ -72,3 +72,10 @@ A refund is never paid automatically; cancelled prepaid orders get a *pending* r
 - The product is chosen in **Content → Settings → Homepage product**. "Automatic" picks the most recently updated featured product that has stock. An unpublished or archived choice is never shown; the automatic pick is used until it is published again. Changes appear within about a minute because the storefront caches the home data for 60 seconds.
 - Name, photos, price / compare-at price, colours, sizes, fabric, embroidery, design, description and care text come from the product. Brand copy (why buy, check before you pay, photo match, return policy) is fixed text in `client/src/components/store/home-landing/home-landing.tsx`. Reviews appear only when real testimonials exist (Content → Testimonials).
 - Every "অর্ডার করুন" button scrolls to the order form on the same page. The form is the standard checkout (name, mobile, address, Inside / Outside Dhaka). Delivery charges and the total come from the server. Meta events are the same as on product pages: ViewContent on load, InitiateCheckout when the form is first used, Purchase after the order.
+
+### Customer reviews
+
+- Reviews come only from **Content → Testimonials**. A testimonial can be a written quote (customer name required), a **review screenshot** (e.g. the customer's Messenger / WhatsApp message), or both.
+- The star rating is optional and empty by default. Set it only when the customer actually gave stars. The landing page shows an average only from real ratings.
+- On the homepage the reviews sit just before the offer price, as a slider: one card per screen on phones, up to three on desktop. Tap a screenshot to see it full size. `/home2` and CMS pages show the same testimonials.
+- Before uploading a screenshot, hide the customer's phone number, address and other personal details.

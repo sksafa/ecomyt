@@ -116,16 +116,27 @@ export function Testimonials({ items, title = "What our customers say" }: { item
       <SectionTitle title={title || "What our customers say"} eyebrow="Reviews" />
       <div className="bb-scroll-x -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-3">
         {items.map((t) => (
-          <figure key={t.id} className="w-[80%] shrink-0 snap-start rounded-xl border border-border bg-card p-5 sm:w-auto">
-            {t.rating ? <Stars rating={t.rating} /> : null}
-            <blockquote className="mt-3 text-sm leading-relaxed text-foreground/90">“{t.quote}”</blockquote>
-            <figcaption className="mt-4 flex items-center gap-3">
-              {t.imageUrl ? <Img src={t.imageUrl} alt="" className="size-9 rounded-full" /> : <span className="grid size-9 place-items-center rounded-full bg-secondary font-display text-primary">{t.name.slice(0, 1)}</span>}
-              <span>
-                <span className="block text-sm font-medium">{t.name}</span>
-                {t.location && <span className="block text-xs text-muted-foreground">{t.location}</span>}
-              </span>
-            </figcaption>
+          <figure key={t.id} className="w-[80%] shrink-0 snap-start overflow-hidden rounded-xl border border-border bg-card sm:w-auto">
+            {t.reviewImageUrl && (
+              <a href={t.reviewImageUrl} target="_blank" rel="noopener noreferrer" className="block bg-secondary">
+                <Img src={t.reviewImageUrl} alt={`Customer review${t.name ? ` from ${t.name}` : ""}`} className="aspect-[2/3] w-full object-contain" />
+              </a>
+            )}
+            {(t.rating || t.quote || t.name) && (
+              <div className="p-5">
+                {t.rating ? <Stars rating={t.rating} /> : null}
+                {t.quote && <blockquote className="mt-3 text-sm leading-relaxed text-foreground/90">“{t.quote}”</blockquote>}
+                {t.name && (
+                  <figcaption className="mt-4 flex items-center gap-3">
+                    {t.imageUrl ? <Img src={t.imageUrl} alt="" className="size-9 rounded-full" /> : <span className="grid size-9 place-items-center rounded-full bg-secondary font-display text-primary">{t.name.slice(0, 1)}</span>}
+                    <span>
+                      <span className="block text-sm font-medium">{t.name}</span>
+                      {t.location && <span className="block text-xs text-muted-foreground">{t.location}</span>}
+                    </span>
+                  </figcaption>
+                )}
+              </div>
+            )}
           </figure>
         ))}
       </div>
